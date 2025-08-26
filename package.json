@@ -28,7 +28,8 @@
       "target": [
         { "target": "nsis", "arch": ["x64"] }
       ],
-      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}"
+      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": ["dmg","zip"],
@@ -49,7 +50,8 @@
     "@types/node": "^24.3.0",
     "electron": "^37.3.1",
     "electron-builder": "^26.0.12",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"

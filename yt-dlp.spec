@@ -6,8 +6,8 @@ hiddenimports += collect_submodules('yt_dlp')
 
 
 a = Analysis(
-    ['/home/jenny/projects/yt-dlp/yt-dlp/yt_dlp/__main__.py'],
-    pathex=['/home/jenny/projects/yt-dlp/yt-dlp'],
+    ['C:\\Users\\jwagner\\Desktop\\yt-dlp-electron\\yt-dlp\\yt_dlp\\__main__.py'],
+    pathex=['C:\\Users\\jwagner\\Desktop\\yt-dlp-electron\\yt-dlp'],
     binaries=[],
     datas=[],
     hiddenimports=hiddenimports,
@@ -29,7 +29,7 @@ exe = EXE(
     name='yt-dlp',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
+    strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
@@ -39,5 +39,4 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='NONE',
 )

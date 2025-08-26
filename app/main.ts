@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'node:path';
-import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
+import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
 
 function getDistDir(): string {
@@ -114,11 +114,14 @@ function spawnYtDlp(
       const vendorBinDir = getVendorBinDir();
       const vendoredYtDlp = path.join(vendorBinDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
       const vendoredFfmpegDir = vendorBinDir; // keep ffmpeg and ffprobe here
+      const vendoredFfmpegExe = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
 
       // Do not use -E, we need PYTHONPATH to be honored
       const argsBase = [
         '-m', 'yt_dlp',
         '--newline', '--no-color',
+        '--ignore-config',
+        '-v',
         '-f', 'bestaudio',
         '--extract-audio',
         '--audio-format', 'aac',
@@ -134,27 +137,44 @@ function spawnYtDlp(
       const outputTemplateArgs = ['-P', outputDir, '-o', '%(title)s.%(ext)s'];
       const fullArgs = [
         ...argsBase,
-        '--ffmpeg-location', vendoredFfmpegDir,
+        '--ffmpeg-location', vendoredFfmpegExe,
         '--prefer-ffmpeg',
         url,
         ...outputTemplateArgs,
       ];
 
-      const env = { ...process.env, PYTHONPATH: ytDlpRoot };
+      // Debug info to help diagnose environment and paths
+      try {
+        const ffmpegPath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+        const ffprobePath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+        sendLog(`[debug] vendoredYtDlp=${vendoredYtDlp} exists=${fs.existsSync(vendoredYtDlp)}`);
+        sendLog(`[debug] ffmpeg=${ffmpegPath} exists=${fs.existsSync(ffmpegPath)} | ffprobe=${ffprobePath} exists=${fs.existsSync(ffprobePath)}`);
+        sendLog(`[debug] outputDir=${outputDir}`);
+        sendLog(`[debug] args=${JSON.stringify(fullArgs)}`);
+      } catch {}
+
+      const envBase = { ...process.env, PYTHONPATH: ytDlpRoot } as NodeJS.ProcessEnv;
+      const extendedEnv: NodeJS.ProcessEnv = {
+        ...envBase,
+        PATH: `${vendoredFfmpegDir}${path.delimiter}${envBase.PATH || ''}`,
+      };
 
       let child: ChildProcessWithoutNullStreams | null = null;
       if (fs.existsSync(vendoredYtDlp)) {
-        child = spawn(vendoredYtDlp, fullArgs.filter((a) => a !== '-m' && a !== 'yt_dlp'), {
-          env: { ...process.env },
-        });
+        sendLog('[debug] Using vendored yt-dlp executable');
+        const exeArgs = fullArgs.filter((a) => a !== '-m' && a !== 'yt_dlp');
+        sendLog(`[debug] exeArgs=${JSON.stringify(exeArgs)}`);
+        child = spawn(vendoredYtDlp, exeArgs, { env: extendedEnv });
       } else {
         // Fallback to local Python module (dev mode)
+        sendLog('[debug] vendored yt-dlp not found. Falling back to python -m yt_dlp');
         let started = false;
         const candidates = resolvePythonCommand();
         for (const candidate of candidates) {
           try {
-            child = spawn(candidate, fullArgs, { env });
+            child = spawn(candidate, fullArgs, { env: extendedEnv });
             started = true;
+            sendLog(`[debug] Spawned ${candidate} -m yt_dlp`);
             break;
           } catch {
             started = false;
@@ -209,8 +229,10 @@ ipcMain.handle('start-download', async (event, payload: { url: string; outputDir
   try {
     let lastPath = '';
     const result = await spawnYtDlp(url.trim(), outputDir.trim(), (line) => {
-      if (/^\/.+\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i.test(line)) {
-        lastPath = line;
+      const text = line.trim();
+      const savedFilePattern = /^(?:[a-zA-Z]:\\|\/)\S.*\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i;
+      if (savedFilePattern.test(text)) {
+        lastPath = text;
       }
       event.sender.send('download-log', line);
     });

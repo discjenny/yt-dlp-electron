@@ -36,21 +36,67 @@ function Build-With-MSYS2 {
 }
 
 function Fetch-Prebuilt {
-  # Gyan.dev static build (x64). Update to a pinned URL as desired.
-  $zipUrl = "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.0.2-essentials_build.zip"
+  # Try multiple sources in order. First valid URL wins.
+  $urls = @(
+    # yt-dlp maintained builds (recommended)
+    "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip",
+    "https://github.com/yt-dlp/FFmpeg-Builds/releases/latest/download/ffmpeg-n6.1-latest-win64-gpl.zip",
+    # Gyan.dev fallback (version may change over time)
+    "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.1-essentials_build.zip",
+    "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-7.0.2-essentials_build.zip"
+  )
+
+  # If Node module ffmpeg-static is present on Windows, use it directly.
+  $ffmpegStaticPath = Join-Path $Root "node_modules\ffmpeg-static\ffmpeg.exe"
+  if (Test-Path $ffmpegStaticPath) {
+    Copy-Item -Force $ffmpegStaticPath (Join-Path $OutDir "ffmpeg.exe")
+  }
+
+  # Try to locate ffprobe from common installer packages if present.
+  $probeCandidates = @(
+    (Join-Path $Root "node_modules\ffprobe-static\bin\win32\x64\ffprobe.exe"),
+    (Join-Path $Root "node_modules\@ffprobe-installer\win32-x64\ffprobe.exe")
+  )
+  foreach ($p in $probeCandidates) {
+    if (-not (Test-Path (Join-Path $OutDir "ffprobe.exe")) -and (Test-Path $p)) {
+      Copy-Item -Force $p (Join-Path $OutDir "ffprobe.exe")
+      break
+    }
+  }
+
+  # If both binaries exist already, stop here.
+  if ((Test-Path (Join-Path $OutDir "ffmpeg.exe")) -and (Test-Path (Join-Path $OutDir "ffprobe.exe"))) {
+    return
+  }
+
   $tmp = New-Item -ItemType Directory -Force -Path (Join-Path $env:TEMP "ffmzip")
   $zipPath = Join-Path $tmp.FullName "ff.zip"
-  Invoke-WebRequest -Uri $zipUrl -OutFile $zipPath
   $extractTo = Join-Path $tmp.FullName "x"
+
+  $downloaded = $false
+  foreach ($u in $urls) {
+    try {
+      Remove-Item -Force -ErrorAction SilentlyContinue $zipPath
+      Invoke-WebRequest -Uri $u -OutFile $zipPath -UseBasicParsing
+      $downloaded = $true
+      break
+    } catch {
+      Write-Host "[warn] Download failed from $u. Trying next source..."
+    }
+  }
+
+  if (-not $downloaded) { throw "Failed to download ffmpeg from all sources" }
+
   Expand-Archive -Path $zipPath -DestinationPath $extractTo -Force
-  $bin = Get-ChildItem -Path $extractTo -Recurse -Filter ffmpeg.exe | Select-Object -First 1
-  if (-not $bin) { throw "ffmpeg.exe not found in downloaded package" }
-  $root = Split-Path $bin.FullName -Parent
-  Copy-Item -Force (Join-Path $root "ffmpeg.exe") (Join-Path $OutDir "ffmpeg.exe")
-  Copy-Item -Force (Join-Path $root "ffprobe.exe") (Join-Path $OutDir "ffprobe.exe")
+  $ffExe = Get-ChildItem -Path $extractTo -Recurse -Filter ffmpeg.exe | Select-Object -First 1
+  $fpExe = Get-ChildItem -Path $extractTo -Recurse -Filter ffprobe.exe | Select-Object -First 1
+  if (-not $ffExe) { throw "ffmpeg.exe not found in downloaded package" }
+  if (-not $fpExe) { throw "ffprobe.exe not found in downloaded package" }
+  Copy-Item -Force $ffExe.FullName (Join-Path $OutDir "ffmpeg.exe")
+  Copy-Item -Force $fpExe.FullName (Join-Path $OutDir "ffprobe.exe")
 }
 
-if (Test-Path (Join-Path $OutDir "ffmpeg.exe") -and Test-Path (Join-Path $OutDir "ffprobe.exe")) {
+if ((Test-Path (Join-Path $OutDir "ffmpeg.exe")) -and (Test-Path (Join-Path $OutDir "ffprobe.exe"))) {
   Write-Host "ffmpeg/ffprobe already exist in vendor\\bin"
 } else {
   if (Test-MSYS2) {
