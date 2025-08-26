@@ -32,6 +32,7 @@ bun run build
 
 # 6) Package NSIS installer
 Write-Host "[info] Packaging NSIS installer"
-npx electron-builder --win nsis
+npx electron-builder --win nsis --x64
 
 Write-Host "[done] Windows build complete. Artifacts in release/"
+Get-ChildItem -Recurse -Path "$Root\release" -Filter "*.exe" | ForEach-Object { Write-Host "[artifact]" $_.FullName }

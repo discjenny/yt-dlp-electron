@@ -1,10 +1,12 @@
 {
   "name": "yt-dlp",
+  "version": "0.1.0",
   "module": "index.ts",
   "type": "module",
   "private": true,
   "main": "dist/main.js",
   "build": {
+    "productName": "yt-dlp Desktop",
     "appId": "com.example.ytdlpdesktop",
     "files": [
       "dist/**",
@@ -21,8 +23,11 @@
       "artifactName": "ytdlp-desktop-${version}-linux.${ext}"
     },
     "win": {
-      "target": ["nsis"],
-      "artifactName": "ytdlp-desktop-${version}-win.${ext}"
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
+      "publisherName": "yt-dlp Desktop"
     },
     "mac": {
       "target": ["dmg","zip"],
