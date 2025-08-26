@@ -10,31 +10,54 @@
   "build": {
     "productName": "yt-dlp Desktop",
     "appId": "com.example.ytdlpdesktop",
-    "icon": "build/icons/icon",
+    "icon": "build/icon.ico",
     "files": [
       "dist/**",
       "vendor/bin/**"
     ],
     "extraResources": [
-      { "from": "vendor/bin", "to": "bin" },
-      { "from": "LICENSES", "to": "licenses" }
+      {
+        "from": "vendor/bin",
+        "to": "bin"
+      },
+      {
+        "from": "LICENSES",
+        "to": "licenses"
+      },
+      {
+        "from": "build/icons",
+        "to": "icons"
+      }
     ],
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
     "linux": {
       "target": ["AppImage"],
       "category": "AudioVideo",
-      "artifactName": "ytdlp-desktop-${version}-linux.${ext}"
+      "artifactName": "ytdlp-desktop-${version}-linux.${ext}",
+      "icon": "build/icons"
     },
     "win": {
       "target": [
-        { "target": "nsis", "arch": ["x64"] }
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
       ],
       "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
       "signAndEditExecutable": false,
-      "icon": "build/icons/icon.ico"
+      "icon": "build/icons/icon.ico",
+      "executableName": "ytdlp-desktop"
+    },
+    "nsis": {
+      "shortcutName": "yt-dlp Desktop",
+      "installerIcon": "build/icons/icon.ico",
+      "uninstallerIcon": "build/icons/icon.ico"
     },
     "mac": {
-      "target": ["dmg","zip"],
+      "target": ["dmg", "zip"],
       "category": "public.app-category.music",
       "artifactName": "ytdlp-desktop-${version}-mac.${ext}"
     }
@@ -56,10 +79,11 @@
     "electron-builder": "^26.0.12",
     "ffmpeg-static": "^5.2.0",
     "ffprobe-static": "^3.1.0",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.13",
     "png-to-ico": "^2.1.8",
-    "sharp": "^0.33.5"
+    "postcss": "^8.4.47",
+    "rcedit": "^4.0.1",
+    "sharp": "^0.33.5",
+    "tailwindcss": "^3.4.13"
   },
   "peerDependencies": {
     "typescript": "^5"

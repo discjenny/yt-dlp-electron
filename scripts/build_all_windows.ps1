@@ -34,13 +34,39 @@ Write-Host "[info] Bundling Electron app"
 bun run build
 if ($LASTEXITCODE -ne 0) { throw "[fatal] bundling failed" }
 
-# 6) Package NSIS installer
-Write-Host "[info] Packaging NSIS installer"
+# 6) Create unpacked app (dir) so we can force-set exe icon, then build NSIS from prepackaged
+Write-Host "[info] Creating unpacked app (dir target)"
 $env:CSC_IDENTITY_AUTO_DISCOVERY = "false"
 $env:CSC_LINK = ""
 $env:WIN_CSC_LINK = ""
-npx electron-builder --win nsis --x64
-if ($LASTEXITCODE -ne 0) { throw "[fatal] electron-builder packaging failed" }
+npx electron-builder --win dir --x64
+if ($LASTEXITCODE -ne 0) { throw "[fatal] electron-builder dir target failed" }
+
+# 6.1) Force apply icon to exe using rcedit (fallback to installing if missing)
+$rcedit = Join-Path $Root "node_modules\rcedit\bin\rcedit-x64.exe"
+if (-not (Test-Path $rcedit)) {
+  Write-Host "[info] Installing rcedit dev dependency to set exe icon"
+  bun add -d rcedit | Out-Null
+}
+$rcedit = Join-Path $Root "node_modules\rcedit\bin\rcedit-x64.exe"
+if (Test-Path $rcedit) {
+  $exePath = Join-Path $Root "release\win-unpacked\ytdlp-desktop.exe"
+  $icoPath = Join-Path $Root "build\icon.ico"
+  if (-not (Test-Path $icoPath)) { $icoPath = Join-Path $Root "build\icons\icon.ico" }
+  if (Test-Path $exePath -and (Test-Path $icoPath)) {
+    Write-Host "[info] Applying icon to exe via rcedit"
+    & $rcedit "$exePath" --set-icon "$icoPath"
+  } else {
+    Write-Host "[warn] Skipping rcedit (exe or icon not found)"
+  }
+} else {
+  Write-Host "[warn] rcedit not available; skipping explicit exe icon set"
+}
+
+# 6.2) Package NSIS installer from prepackaged folder (no code signing)
+Write-Host "[info] Packaging NSIS installer (prepackaged)"
+npx electron-builder --prepackaged "$Root\release\win-unpacked" --win nsis --x64
+if ($LASTEXITCODE -ne 0) { throw "[fatal] electron-builder packaging (prepackaged) failed" }
 
 Write-Host "[done] Windows build complete. Artifacts in release/"
 Get-ChildItem -Recurse -Path "$Root\release" -Filter "*.exe" | ForEach-Object { Write-Host "[artifact]" $_.FullName }

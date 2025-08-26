@@ -37,6 +37,9 @@ function createWindow() {
     backgroundColor: '#0b0c10',
     frame: process.platform !== 'win32',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    icon: app.isPackaged
+      ? path.join(process.resourcesPath, 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
+      : path.join(getResourcesDir(), 'build', 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     webPreferences: {
       preload: path.join(getDistDir(), 'preload.js'),
       contextIsolation: true,
@@ -60,6 +63,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // Ensure taskbar/Start menu shortcut uses the correct icon on Windows
+  // Must be called before creating any BrowserWindow
+  if (process.platform === 'win32') {
+    // Set a stable explicit AppUserModelID to bind taskbar/shortcuts to our exe + icon
+    app.setAppUserModelId('com.example.ytdlpdesktop');
+  }
+
   createWindow();
 
   app.on('activate', () => {
@@ -106,7 +116,8 @@ ipcMain.on('window-action', (_evt, action: 'minimize' | 'close') => {
 ipcMain.on('ui:set-logs-visible', (_evt, visible: boolean) => {
   if (!mainWindow) return;
   // Resize window when logs are hidden to a smaller height
-  const [w] = mainWindow.getSize();
+  const size = mainWindow.getSize();
+  const w = Array.isArray(size) && typeof size[0] === 'number' ? size[0] : 620;
   const compactHeight = 400; // smaller height without logs
   const fullHeight = 580; // original height
   mainWindow.setSize(w, visible ? fullHeight : compactHeight);
