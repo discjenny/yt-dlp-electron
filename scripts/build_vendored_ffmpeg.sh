@@ -7,11 +7,24 @@ set -euo pipefail
 ROOT_DIR=$(cd "$(dirname "$0")/.." && pwd)
 OUT_DIR="$ROOT_DIR/vendor/bin"
 WORK_DIR="$ROOT_DIR/.build-ffmpeg"
+DEPS_PREFIX="$WORK_DIR/deps"
 
-mkdir -p "$OUT_DIR" "$WORK_DIR"
+mkdir -p "$OUT_DIR" "$WORK_DIR" "$DEPS_PREFIX"
 cd "$WORK_DIR"
 
 # Fetch sources (ffmpeg and optional fdk-aac). For distro-friendly, use native aac encoder (aac) to avoid fdk license.
+# Build libfdk-aac (static) for best AAC encoding quality
+if [[ ! -d fdk-aac ]]; then
+  git clone --depth=1 https://github.com/mstorsjo/fdk-aac.git fdk-aac
+fi
+pushd fdk-aac
+autoreconf -fiv || true
+./configure --prefix="$DEPS_PREFIX" --disable-shared --enable-static
+make -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)"
+make install
+popd
+
+# Fetch FFmpeg
 if [[ ! -d ffmpeg ]]; then
   git clone --depth=1 https://github.com/FFmpeg/FFmpeg.git ffmpeg
 fi
@@ -22,6 +35,8 @@ PREFIX="$WORK_DIR/prefix"
 mkdir -p "$PREFIX"
 
 # Configure minimal build
+export PKG_CONFIG_PATH="$DEPS_PREFIX/lib/pkgconfig:$PKG_CONFIG_PATH"
+
 ./configure \
   --prefix="$PREFIX" \
   --disable-everything \
@@ -31,7 +46,8 @@ mkdir -p "$PREFIX"
   --enable-bsf=aac_adtstoasc \
   --enable-parser=aac,mpegvideo,mpegaudio,opus,vorbis \
   --enable-decoder=aac,mp3,vorbis,opus \
-  --enable-encoder=aac,libmp3lame \
+  --enable-libfdk-aac \
+  --enable-encoder=libfdk_aac \
   --enable-filter=aformat,aresample,volume \
   --enable-small \
   --disable-doc \
@@ -39,9 +55,11 @@ mkdir -p "$PREFIX"
   --disable-network \
   --disable-avdevice \
   --enable-static \
-  --disable-shared
+  --disable-shared \
+  --enable-nonfree
 
-make -j"$(nproc)"
+CORES=$(getconf _NPROCESSORS_ONLN 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)
+make -j"$CORES"
 make install
 
 cp -f "$PREFIX/bin/ffmpeg" "$OUT_DIR/ffmpeg" || true

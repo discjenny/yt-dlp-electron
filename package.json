@@ -11,7 +11,8 @@
       "vendor/bin/**"
     ],
     "extraResources": [
-      { "from": "vendor/bin", "to": "bin" }
+      { "from": "vendor/bin", "to": "bin" },
+      { "from": "LICENSES", "to": "licenses" }
     ],
     "directories": { "output": "release" },
     "linux": {

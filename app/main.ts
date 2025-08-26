@@ -132,7 +132,13 @@ function spawnYtDlp(
         '--print', 'after_move:filepath',
       ];
       const outputTemplateArgs = ['-P', outputDir, '-o', '%(title)s.%(ext)s'];
-      const fullArgs = [...argsBase, '--ffmpeg-location', vendoredFfmpegDir, url, ...outputTemplateArgs];
+      const fullArgs = [
+        ...argsBase,
+        '--ffmpeg-location', vendoredFfmpegDir,
+        '--prefer-ffmpeg',
+        url,
+        ...outputTemplateArgs,
+      ];
 
       const env = { ...process.env, PYTHONPATH: ytDlpRoot };
 
