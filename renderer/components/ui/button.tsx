@@ -1,0 +1,30 @@
+import * as React from 'react';
+import { cn } from '../../lib/cn';
+
+type Variant = 'default' | 'secondary' | 'destructive' | 'outline';
+
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: Variant;
+  size?: 'sm' | 'md';
+};
+
+const base = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+const variants: Record<Variant, string> = {
+  default: 'bg-[var(--panel)] text-[var(--fg)] hover:brightness-110 border border-[var(--border)]',
+  secondary: 'bg-[#14151c] text-[var(--fg)] hover:brightness-110 border border-[var(--border)]',
+  destructive: 'bg-[var(--danger)] text-white hover:brightness-110 border border-[var(--border)]',
+  outline: 'bg-transparent text-[var(--fg)] hover:bg-[#111217] border border-[var(--border)]',
+};
+const sizes = {
+  sm: 'h-8 px-3',
+  md: 'h-9 px-3',
+};
+
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = 'secondary', size = 'md', ...props }, ref) => {
+    return (
+      <button ref={ref} className={cn(base, variants[variant], sizes[size], className)} {...props} />
+    );
+  }
+);
+Button.displayName = 'Button';

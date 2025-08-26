@@ -21,6 +21,8 @@ function getVendorBinDir(): string {
     : path.join(getResourcesDir(), 'vendor', 'bin');
 }
 
+let mainWindow: BrowserWindow | null = null;
+
 function createWindow() {
   const isDev = !app.isPackaged;
   const win = new BrowserWindow({
@@ -33,6 +35,8 @@ function createWindow() {
     show: true,
     autoHideMenuBar: true,
     backgroundColor: '#0b0c10',
+    frame: process.platform !== 'win32',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     webPreferences: {
       preload: path.join(getDistDir(), 'preload.js'),
       contextIsolation: true,
@@ -46,6 +50,13 @@ function createWindow() {
   if (isDev) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
+
+  // Reinforce window as fixed-size and disable native title controls on Windows
+  if (process.platform === 'win32') {
+    win.setMenuBarVisibility(false);
+  }
+
+  mainWindow = win;
 }
 
 app.whenReady().then(() => {
@@ -79,6 +90,26 @@ ipcMain.handle('get-default-downloads', async () => {
   } catch {
     return '';
   }
+});
+
+let DEBUG_ENABLED = false;
+ipcMain.on('set-debug', (_evt, enabled: boolean) => {
+  DEBUG_ENABLED = !!enabled;
+});
+
+ipcMain.on('window-action', (_evt, action: 'minimize' | 'close') => {
+  if (!mainWindow) return;
+  if (action === 'minimize') mainWindow.minimize();
+  if (action === 'close') mainWindow.close();
+});
+
+ipcMain.on('ui:set-logs-visible', (_evt, visible: boolean) => {
+  if (!mainWindow) return;
+  // Resize window when logs are hidden to a smaller height
+  const [w] = mainWindow.getSize();
+  const compactHeight = 400; // smaller height without logs
+  const fullHeight = 580; // original height
+  mainWindow.setSize(w, visible ? fullHeight : compactHeight);
 });
 
 function resolvePythonCommand(): string[] {
@@ -121,7 +152,7 @@ function spawnYtDlp(
         '-m', 'yt_dlp',
         '--newline', '--no-color',
         '--ignore-config',
-        '-v',
+        ...(DEBUG_ENABLED ? ['-v'] : []),
         '-f', 'bestaudio',
         '--extract-audio',
         '--audio-format', 'aac',
@@ -144,14 +175,17 @@ function spawnYtDlp(
       ];
 
       // Debug info to help diagnose environment and paths
-      try {
-        const ffmpegPath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-        const ffprobePath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
-        sendLog(`[debug] vendoredYtDlp=${vendoredYtDlp} exists=${fs.existsSync(vendoredYtDlp)}`);
-        sendLog(`[debug] ffmpeg=${ffmpegPath} exists=${fs.existsSync(ffmpegPath)} | ffprobe=${ffprobePath} exists=${fs.existsSync(ffprobePath)}`);
-        sendLog(`[debug] outputDir=${outputDir}`);
-        sendLog(`[debug] args=${JSON.stringify(fullArgs)}`);
-      } catch {}
+      if (DEBUG_ENABLED) {
+        try {
+          const ffmpegPath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+          const ffprobePath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
+          sendLog(`[debug] Debug mode ON`);
+          sendLog(`[debug] vendoredYtDlp=${vendoredYtDlp} exists=${fs.existsSync(vendoredYtDlp)}`);
+          sendLog(`[debug] ffmpeg=${ffmpegPath} exists=${fs.existsSync(ffmpegPath)} | ffprobe=${ffprobePath} exists=${fs.existsSync(ffprobePath)}`);
+          sendLog(`[debug] outputDir=${outputDir}`);
+          sendLog(`[debug] args=${JSON.stringify(fullArgs)}`);
+        } catch {}
+      }
 
       const envBase = { ...process.env, PYTHONPATH: ytDlpRoot } as NodeJS.ProcessEnv;
       const extendedEnv: NodeJS.ProcessEnv = {
@@ -161,20 +195,20 @@ function spawnYtDlp(
 
       let child: ChildProcessWithoutNullStreams | null = null;
       if (fs.existsSync(vendoredYtDlp)) {
-        sendLog('[debug] Using vendored yt-dlp executable');
+        if (DEBUG_ENABLED) sendLog('[debug] Using vendored yt-dlp executable');
         const exeArgs = fullArgs.filter((a) => a !== '-m' && a !== 'yt_dlp');
-        sendLog(`[debug] exeArgs=${JSON.stringify(exeArgs)}`);
+        if (DEBUG_ENABLED) sendLog(`[debug] exeArgs=${JSON.stringify(exeArgs)}`);
         child = spawn(vendoredYtDlp, exeArgs, { env: extendedEnv });
       } else {
         // Fallback to local Python module (dev mode)
-        sendLog('[debug] vendored yt-dlp not found. Falling back to python -m yt_dlp');
+        if (DEBUG_ENABLED) sendLog('[debug] vendored yt-dlp not found. Falling back to python -m yt_dlp');
         let started = false;
         const candidates = resolvePythonCommand();
         for (const candidate of candidates) {
           try {
             child = spawn(candidate, fullArgs, { env: extendedEnv });
             started = true;
-            sendLog(`[debug] Spawned ${candidate} -m yt_dlp`);
+            if (DEBUG_ENABLED) sendLog(`[debug] Spawned ${candidate} -m yt_dlp`);
             break;
           } catch {
             started = false;
@@ -194,12 +228,20 @@ function spawnYtDlp(
 
       child.stdout.on('data', (chunk: string) => {
         stdoutBuf += chunk;
-        chunk.split(/\r?\n/).forEach((line) => line && sendLog(line));
+        chunk.split(/\r?\n/).forEach((line) => {
+          if (!line) return;
+          if (DEBUG_ENABLED) return sendLog(line);
+          if (!/^\[debug\]/i.test(line)) sendLog(line);
+        });
       });
 
       child.stderr.on('data', (chunk: string) => {
         stderrBuf += chunk;
-        chunk.split(/\r?\n/).forEach((line) => line && sendLog(line));
+        chunk.split(/\r?\n/).forEach((line) => {
+          if (!line) return;
+          if (DEBUG_ENABLED) return sendLog(line);
+          if (!/^\[debug\]/i.test(line)) sendLog(line);
+        });
       });
 
       child.on('error', (error) => {

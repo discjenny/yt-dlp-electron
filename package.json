@@ -10,6 +10,7 @@
   "build": {
     "productName": "yt-dlp Desktop",
     "appId": "com.example.ytdlpdesktop",
+    "icon": "build/icons/icon",
     "files": [
       "dist/**",
       "vendor/bin/**"
@@ -29,7 +30,8 @@
         { "target": "nsis", "arch": ["x64"] }
       ],
       "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
-      "signAndEditExecutable": false
+      "signAndEditExecutable": false,
+      "icon": "build/icons/icon.ico"
     },
     "mac": {
       "target": ["dmg","zip"],
@@ -38,7 +40,8 @@
     }
   },
   "scripts": {
-    "build": "bun build app/main.ts --target node --external electron --minify --outfile dist/main.js && bun build app/preload.ts --target node --external electron --minify --outfile dist/preload.js && bun build renderer/index.tsx --outdir dist --minify && cp renderer/index.html renderer/styles.css dist/",
+    "icons": "node scripts/build_icons.mjs",
+    "build": "bun run icons && bunx tailwindcss -i renderer/tailwind.css -o dist/tailwind.css -m && bun build app/main.ts --target node --external electron --minify --outfile dist/main.js && bun build app/preload.ts --target node --external electron --minify --outfile dist/preload.js && bun build renderer/main.tsx --minify --outfile dist/renderer.js && cp renderer/index.html renderer/styles.css dist/ && node scripts/copy_media.mjs",
     "start": "bun run build && electron .",
     "prune:yt-dlp": "bun run scripts/prune_yt_dlp.ts",
     "vendor:yt-dlp": "scripts/build_vendored_yt_dlp.sh",
@@ -48,10 +51,15 @@
     "@types/bun": "latest",
     "@types/electron": "^1.6.12",
     "@types/node": "^24.3.0",
+    "autoprefixer": "^10.4.20",
     "electron": "^37.3.1",
     "electron-builder": "^26.0.12",
     "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^3.1.0"
+    "ffprobe-static": "^3.1.0",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.13",
+    "png-to-ico": "^2.1.8",
+    "sharp": "^0.33.5"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -59,6 +67,11 @@
   "dependencies": {
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.8",
+    "@radix-ui/react-popover": "^1.0.7",
+    "@radix-ui/react-switch": "^1.0.3",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "tailwind-merge": "^2.5.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   }

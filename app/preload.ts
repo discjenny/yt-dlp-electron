@@ -9,6 +9,9 @@ declare global {
       startDownload: (payload: { url: string; outputDir: string }) => Promise<DownloadResult>;
       onDownloadLog: (listener: (line: string) => void) => () => void;
       getDefaultDownloads: () => Promise<string>;
+      setDebug: (enabled: boolean) => void;
+      windowAction: (action: 'minimize' | 'close') => void;
+      setLogsVisible: (visible: boolean) => void;
     };
   }
 }
@@ -22,4 +25,13 @@ contextBridge.exposeInMainWorld('api', {
     return () => ipcRenderer.removeListener('download-log', handler);
   },
   getDefaultDownloads: () => ipcRenderer.invoke('get-default-downloads'),
+  setDebug: (enabled: boolean) => {
+    ipcRenderer.send('set-debug', enabled);
+  },
+  windowAction: (action: 'minimize' | 'close') => {
+    ipcRenderer.send('window-action', action);
+  },
+  setLogsVisible: (visible: boolean) => {
+    ipcRenderer.send('ui:set-logs-visible', visible);
+  },
 });
