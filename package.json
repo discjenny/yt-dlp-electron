@@ -1,0 +1,56 @@
+{
+  "name": "yt-dlp",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "main": "dist/main.js",
+  "build": {
+    "appId": "com.example.ytdlpdesktop",
+    "files": [
+      "dist/**",
+      "vendor/bin/**"
+    ],
+    "extraResources": [
+      { "from": "vendor/bin", "to": "bin" }
+    ],
+    "directories": { "output": "release" },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "AudioVideo",
+      "artifactName": "ytdlp-desktop-${version}-linux.${ext}"
+    },
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "ytdlp-desktop-${version}-win.${ext}"
+    },
+    "mac": {
+      "target": ["dmg","zip"],
+      "category": "public.app-category.music",
+      "artifactName": "ytdlp-desktop-${version}-mac.${ext}"
+    }
+  },
+  "scripts": {
+    "build": "bun build app/main.ts --target node --external electron --minify --outfile dist/main.js && bun build app/preload.ts --target node --external electron --minify --outfile dist/preload.js && bun build renderer/index.tsx --outdir dist --minify && cp renderer/index.html renderer/styles.css dist/",
+    "start": "bun run build && electron .",
+    "prune:yt-dlp": "bun run scripts/prune_yt_dlp.ts",
+    "vendor:yt-dlp": "scripts/build_vendored_yt_dlp.sh",
+    "vendor:ffmpeg": "scripts/build_vendored_ffmpeg.sh"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/electron": "^1.6.12",
+    "@types/node": "^24.3.0",
+    "electron": "^37.3.1",
+    "electron-builder": "^26.0.12",
+    "ffmpeg-static": "^5.2.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@types/react": "^19.1.11",
+    "@types/react-dom": "^19.1.8",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
+  }
+}

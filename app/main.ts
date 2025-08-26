@@ -1,0 +1,226 @@
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import path from 'node:path';
+import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process';
+import fs from 'node:fs';
+
+function getDistDir(): string {
+  // When running via `electron .`, app.getAppPath() is project root
+  // Built assets live in `<root>/dist`
+  return path.join(app.getAppPath(), 'dist');
+}
+
+function getResourcesDir(): string {
+  // In production, Electron packs resources under process.resourcesPath
+  return app.isPackaged ? process.resourcesPath : app.getAppPath();
+}
+
+function getVendorBinDir(): string {
+  // Expect built binaries in `vendor/bin` during dev, and packed into `resources/bin` in production
+  return app.isPackaged
+    ? path.join(getResourcesDir(), 'bin')
+    : path.join(getResourcesDir(), 'vendor', 'bin');
+}
+
+function createWindow() {
+  const isDev = !app.isPackaged;
+  const win = new BrowserWindow({
+    width: 620,
+    height: 580,
+    useContentSize: true,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    show: true,
+    autoHideMenuBar: true,
+    backgroundColor: '#0b0c10',
+    webPreferences: {
+      preload: path.join(getDistDir(), 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  win.loadFile(path.join(getDistDir(), 'index.html'));
+
+  if (isDev) {
+    win.webContents.openDevTools({ mode: 'detach' });
+  }
+}
+
+app.whenReady().then(() => {
+  createWindow();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  });
+});
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') app.quit();
+});
+
+ipcMain.handle('select-output-folder', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  } catch {
+    // On some Linux distros without xdg-desktop-portal, this may fail.
+    return null;
+  }
+});
+
+ipcMain.handle('get-default-downloads', async () => {
+  try {
+    return app.getPath('downloads');
+  } catch {
+    return '';
+  }
+});
+
+function resolvePythonCommand(): string[] {
+  // Try python3 first, then python
+  return ['python3', 'python'];
+}
+
+function ensureDirectoryExists(directoryPath: string): Promise<void> {
+  return fs.promises
+    .mkdir(directoryPath, { recursive: true })
+    .then(() => {})
+    .catch((error) => {
+      if (error && (error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    });
+}
+
+function spawnYtDlp(
+  url: string,
+  outputDir: string,
+  sendLog: (line: string) => void
+): Promise<{ code: number | null; stdout?: string; stderr?: string }>
+{
+  return new Promise(async (resolve, reject) => {
+    try {
+      if (!url || typeof url !== 'string') {
+        reject(new Error('No URL provided'));
+        return;
+      }
+
+      await ensureDirectoryExists(outputDir);
+
+      const ytDlpRoot = path.join(app.getAppPath(), 'yt-dlp');
+      const vendorBinDir = getVendorBinDir();
+      const vendoredYtDlp = path.join(vendorBinDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
+      const vendoredFfmpegDir = vendorBinDir; // keep ffmpeg and ffprobe here
+
+      // Do not use -E, we need PYTHONPATH to be honored
+      const argsBase = [
+        '-m', 'yt_dlp',
+        '--newline', '--no-color',
+        '-f', 'bestaudio',
+        '--extract-audio',
+        '--audio-format', 'aac',
+        '--audio-quality', '0',
+        '--no-write-info-json',
+        '--no-write-description',
+        '--no-write-annotations',
+        '--no-write-thumbnail',
+        '--no-write-playlist-metafiles',
+        '--no-write-comments',
+        '--print', 'after_move:filepath',
+      ];
+      const outputTemplateArgs = ['-P', outputDir, '-o', '%(title)s.%(ext)s'];
+      const fullArgs = [...argsBase, '--ffmpeg-location', vendoredFfmpegDir, url, ...outputTemplateArgs];
+
+      const env = { ...process.env, PYTHONPATH: ytDlpRoot };
+
+      let child: ChildProcessWithoutNullStreams | null = null;
+      if (fs.existsSync(vendoredYtDlp)) {
+        child = spawn(vendoredYtDlp, fullArgs.filter((a) => a !== '-m' && a !== 'yt_dlp'), {
+          env: { ...process.env },
+        });
+      } else {
+        // Fallback to local Python module (dev mode)
+        let started = false;
+        const candidates = resolvePythonCommand();
+        for (const candidate of candidates) {
+          try {
+            child = spawn(candidate, fullArgs, { env });
+            started = true;
+            break;
+          } catch {
+            started = false;
+          }
+        }
+        if (!started || !child) {
+          reject(new Error('Python not found. Please install Python 3 or provide a bundled yt-dlp.'));
+          return;
+        }
+      }
+
+      child.stdout.setEncoding('utf8');
+      child.stderr.setEncoding('utf8');
+
+      let stdoutBuf = '';
+      let stderrBuf = '';
+
+      child.stdout.on('data', (chunk: string) => {
+        stdoutBuf += chunk;
+        chunk.split(/\r?\n/).forEach((line) => line && sendLog(line));
+      });
+
+      child.stderr.on('data', (chunk: string) => {
+        stderrBuf += chunk;
+        chunk.split(/\r?\n/).forEach((line) => line && sendLog(line));
+      });
+
+      child.on('error', (error) => {
+        sendLog(`[error] ${String(error)}`);
+      });
+
+      child.on('close', (code) => {
+        resolve({ code, stdout: stdoutBuf, stderr: stderrBuf });
+      });
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+ipcMain.handle('start-download', async (event, payload: { url: string; outputDir: string }) => {
+  const { url, outputDir } = payload || ({} as any);
+
+  if (!url || typeof url !== 'string') {
+    return { success: false, error: 'Please enter a valid URL.' };
+  }
+
+  if (!outputDir || typeof outputDir !== 'string') {
+    return { success: false, error: 'Please choose an output folder.' };
+  }
+
+  try {
+    let lastPath = '';
+    const result = await spawnYtDlp(url.trim(), outputDir.trim(), (line) => {
+      if (/^\/.+\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i.test(line)) {
+        lastPath = line;
+      }
+      event.sender.send('download-log', line);
+    });
+
+    if (result.code === 0) {
+      return { success: true, path: lastPath } as any;
+    }
+
+    const details = (result.stderr || result.stdout || '').split('\n').find((l) => /error|Traceback|Exception/i.test(l)) || '';
+    const humanMessage = result.code === null
+      ? 'Download failed. Python may be missing.'
+      : `yt-dlp exited with code ${result.code}.${details ? ' ' + details : ''}`;
+
+    return { success: false, error: humanMessage };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { success: false, error: message };
+  }
+});

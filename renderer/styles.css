@@ -1,0 +1,25 @@
+:root{--bg:#0b0c10;--panel:#111217;--fg:#e6edf3;--muted:#9aa4b2;--accent:#5cd3a4;--accent-2:#69a9ff;--danger:#ff6b6b;--border:#1a1b20;}
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;overflow:hidden;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji"}
+.app{width:620px;height:580px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.header{display:flex;justify-content:space-between;align-items:center}
+.title{font-weight:600;letter-spacing:.2px}
+.sub{color:var(--muted);font-size:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.row{display:flex;gap:8px;align-items:center}
+.input{flex:1;background:#0e0f14;color:var(--fg);border:1px solid var(--border);border-radius:10px;padding:10px 12px;outline:none}
+.input:focus{border-color:#2a76ff;box-shadow:0 0 0 3px rgba(105,169,255,.15)}
+.btn{appearance:none;border:1px solid var(--border);background:#14151c;color:var(--fg);border-radius:10px;padding:10px 12px;cursor:pointer;transition:all .15s ease}
+.btn:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.6;cursor:not-allowed}
+.btn.primary{border-color:#1b2d5c;background:linear-gradient(180deg,#24408c,#1c2e62);box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.btn.accent{border-color:#174d3c;background:linear-gradient(180deg,#1a7458,#175a45);}
+.btn.danger{border-color:#5c1b1b;background:linear-gradient(180deg,#8c2424,#621c1c)}
+.help{color:var(--muted);font-size:12px}
+.logs{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;background:#0e0f14;border:1px solid var(--border);border-radius:10px;padding:10px;min-height:160px;flex:1;overflow:auto;white-space:pre-wrap}
+.badge{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;padding:4px 8px;background:#13141a;color:var(--muted);font-size:12px}
+.badge .dot{width:8px;height:8px;border-radius:999px;background:var(--muted)}
+.badge.running .dot{background:var(--accent)}
+.badge.error .dot{background:var(--danger)}
+.footer{display:flex;justify-content:space-between;align-items:center}

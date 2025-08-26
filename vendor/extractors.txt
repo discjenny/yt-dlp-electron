@@ -1,0 +1,17 @@
+# Keep only popular/general extractors to reduce size.
+# Add per-site extractors here (one per line). Examples:
+# youtube
+# generic
+# vimeo
+# soundcloud
+# twitter
+# tiktok
+# instagram
+# reddit
+# bitchute
+# rumble
+# etc.
+
+youtube
+generic
+soundcloud
