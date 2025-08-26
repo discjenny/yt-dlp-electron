@@ -1,6 +1,8 @@
 {
   "name": "yt-dlp",
   "version": "0.1.0",
+  "description": "Minimal yt-dlp desktop app (Electron + React + Bun)",
+  "author": "yt-dlp Desktop",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -26,8 +28,7 @@
       "target": [
         { "target": "nsis", "arch": ["x64"] }
       ],
-      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
-      "publisherName": "yt-dlp Desktop"
+      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}"
     },
     "mac": {
       "target": ["dmg","zip"],
