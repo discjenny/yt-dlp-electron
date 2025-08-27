@@ -9,8 +9,10 @@ function getDistDir(): string {
   return path.join(app.getAppPath(), 'dist');
 }
 
-function getViteDevServerUrl(): string | null {
-  const port = process.env.VITE_DEV_SERVER_PORT || '5175';
+function getDevServerUrl(): string {
+  const explicit = process.env.DEV_SERVER_URL;
+  if (explicit) return explicit;
+  const port = process.env.DEV_SERVER_PORT || '5175';
   return `http://localhost:${port}`;
 }
 
@@ -30,7 +32,7 @@ let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
   const isDev = !app.isPackaged;
-  const useDevServer = process.env.VITE_DEV === '1';
+  const useDevServer = process.env.DEV === '1';
   const win = new BrowserWindow({
     width: 620,
     height: 580,
@@ -56,7 +58,7 @@ function createWindow() {
   });
 
   if (useDevServer) {
-    const devUrl = getViteDevServerUrl();
+    const devUrl = getDevServerUrl();
     win.loadURL(`${devUrl}/`);
   } else {
     win.loadFile(path.join(getDistDir(), 'index.html'));

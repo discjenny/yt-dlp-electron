@@ -15,9 +15,9 @@ export function TopBar(props: {
 }) {
   const { running, hasError, debug, onToggleDebug, logsVisible, onToggleLogs } = props;
   return (
-    <div className="flex items-center justify-between px-[12px] py-[8px] border-b border-border bg-card/40 backdrop-saturate-110 backdrop-blur-md select-none [--app-region:drag] [-webkit-app-region:var(--app-region)]">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card/40 backdrop-saturate-110 backdrop-blur-md select-none [--app-region:drag] [-webkit-app-region:var(--app-region)]">
       <div className="flex items-center gap-2">
-        <div className="font-semibold tracking-[0.2px] leading-none text-[18px]">yt-dlp-electron</div>
+        <div className="font-semibold leading-none text-base">yt-dlp-electron</div>
       </div>
       <div className="ml-auto flex items-center gap-2 [--app-region:no-drag] [-webkit-app-region:var(--app-region)]">
         <Popover>

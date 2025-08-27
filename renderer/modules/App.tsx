@@ -198,9 +198,9 @@ export default function App() {
 
       {/* Logs remain available if toggled on; input form removed for redesign */}
       {logsVisible && (
-        <div className="flex-1 min-h-0 rounded-2xl p-3.5 border border-border bg-card/60 backdrop-saturate-125 backdrop-blur-md shadow-[0_10px_30px_rgba(0,0,0,0.18)] animate-[fadeUp_.25s_ease] flex flex-col gap-2 mx-3 my-3">
-          <label className="text-xs text-muted-foreground">Logs</label>
-          <div className="flex-1 min-h-0 font-mono bg-black/55 border border-border rounded-xl p-2.5 overflow-y-auto whitespace-pre-wrap" style={{ scrollbarWidth: 'thin' }}>
+        <div className="flex-1 min-h-0 rounded-[--radius] p-4 border border-border bg-card/60 backdrop-saturate-125 backdrop-blur-md shadow-md animate-[fadeUp_.25s_ease] flex flex-col gap-2 mx-3 my-3">
+          <Label>Logs</Label>
+          <div className="flex-1 min-h-0 font-mono bg-secondary/40 border border-border rounded-[--radius] p-3 overflow-y-auto whitespace-pre-wrap" style={{ scrollbarWidth: 'thin' }}>
             {logs.map((l, i) => {
               const cls = classifyLine(l);
               return (
@@ -208,12 +208,12 @@ export default function App() {
                   key={i}
                   className={
                     cls === 'error'
-                      ? 'px-1.5 py-0.5 rounded-md border-l-2 border-l-red-400/80 bg-red-400/15'
+                      ? 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-destructive bg-destructive/10'
                       : cls === 'progress'
-                      ? 'px-1.5 py-0.5 rounded-md border-l-2 border-l-sky-400/80 bg-sky-400/10'
+                      ? 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-primary bg-primary/10'
                       : cls === 'debug'
-                      ? 'px-1.5 py-0.5 rounded-md opacity-80'
-                      : 'px-1.5 py-0.5 rounded-md border-l-2 border-l-slate-400/60 bg-slate-400/5'
+                      ? 'px-1.5 py-0.5 rounded-[--radius] opacity-80'
+                      : 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-border'
                   }
                 >
                   {l}
