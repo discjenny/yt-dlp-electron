@@ -2,9 +2,10 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { TopBar } from '../components/TopBar';
 import { Button } from '../components/ui/button';
-import { ExternalLink } from 'lucide-react';
 import { Label } from '../components/ui/label';
-import { Input } from '../components/ui/input';
+import { Branding } from '../components/Branding';
+import { CenteredSearchInput } from '../components/CenteredSearchInput';
+import { DownloadStatus } from '../components/DownloadStatus';
 
 export type DownloadResult = { success: true; path?: string } | { success: false; error: string };
 
@@ -32,9 +33,8 @@ export default function App() {
   const [lastOutputFile, setLastOutputFile] = useState<string | null>(null);
   const [debug, setDebug] = useLocalStorage<boolean>('ytgui:debug', false);
   const [logsVisible, setLogsVisible] = useLocalStorage<boolean>('ytgui:logsVisible', true);
-  const logsContainerRef = useRef<HTMLDivElement>(null);
-  const [introPhase, setIntroPhase] = useState<'hidden'|'center'|'sweep'|'dock'|'done'>('hidden');
-  const [softenWeight, setSoftenWeight] = useState(false);
+  const [brandingDone, setBrandingDone] = useState(false);
+  const [dockInput, setDockInput] = useState(false);
 
   const classifyLine = (line: string) => {
     const l = line.trim();
@@ -65,26 +65,7 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (prefersReduced) {
-      setIntroPhase('done');
-      return;
-    }
-    setIntroPhase('center');
-    setSoftenWeight(false);
-    const centerDelay = 600;
-    const sweepDuration = 1100;
-    const dockDuration = 1300; // matches transition duration below
-    const dockStart = centerDelay + sweepDuration;
-    const doneDelay = dockStart + dockDuration + 100; // small cushion
-
-    const t1 = setTimeout(() => setIntroPhase('sweep'), centerDelay);
-    const t2 = setTimeout(() => setIntroPhase('dock'), dockStart);
-    const tW = setTimeout(() => setSoftenWeight(true), dockStart + 250);
-    const t3 = setTimeout(() => setIntroPhase('done'), doneDelay);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(tW); };
-  }, []);
+  // Branding animation handled inside <Branding/>; we only need to know when it's done
 
   const logsEndRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -108,6 +89,7 @@ export default function App() {
     setError(null);
     setLogs([]);
     setIsRunning(true);
+    setDockInput(true);
     if (debug) {
       addLog('[debug] Requesting download with debug mode ON');
     }
@@ -145,62 +127,32 @@ export default function App() {
         }}
       />
 
-      {/* Intro overlay persists to avoid post-animation jump; becomes the final link */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30" style={{ ['--intro-dy' as any]: 'calc(50vh - 12px)' }}>
-        <div
-          className={
-            'group relative will-change-transform font-bold tracking-[0.4px] text-white text-[56px] leading-[1.05] whitespace-nowrap transition-[transform,font-size] duration-[1300ms] ease-[cubic-bezier(0.22,0.61,0.36,1)] pointer-events-auto hover:cursor-pointer pl-2 pr-6 py-1 rounded-md'
-          }
-          style={{
-            transform: (introPhase === 'dock' || introPhase === 'done') ? 'translateY(var(--intro-dy))' : undefined,
-            fontSize: (introPhase === 'dock' || introPhase === 'done') ? 12 : 56,
-          }}
-          onClick={() => {
-            const api = (globalThis as any).api as Window['api'];
-            api.openExternal('https://wagner.dev');
-          }}
-          
-        >
-            <span className="relative inline-block align-middle">
-              {/* Bold layer (top during early phases) */}
-              <span
-                className={
-                  (introPhase === 'sweep'
-                    ? 'bg-gradient-to-r from-red-500 via-violet-500 to-blue-500 bg-clip-text text-transparent [background-size:300%_100%] animate-[intro-gradient-sweep_1.1s_ease-in-out_both]'
-                    : 'text-white')
-                  + ' transition-opacity duration-300 ' + (softenWeight ? 'opacity-0' : 'opacity-100')
-                }
-              >
-                wagner.dev
-              </span>
-              {/* Normal-weight layer (fades in to avoid weight pop) */}
-              <span className={'absolute inset-0 font-normal text-white transition-opacity duration-300 group-hover:bg-gradient-to-r group-hover:from-red-500 group-hover:via-violet-500 group-hover:to-blue-500 group-hover:bg-clip-text group-hover:text-transparent group-hover:[background-size:300%_100%] group-hover:animate-[intro-gradient-sweep_1.1s_ease-in-out_both] ' + (softenWeight ? 'opacity-100' : 'opacity-0')} aria-hidden>
-                wagner.dev
-              </span>
-              {/* Icon now positioned relative to text wrapper to decouple from container padding */}
-              <span
-                className={
-                  (introPhase === 'sweep'
-                    ? 'absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2'
-                    : (introPhase === 'dock' || introPhase === 'done')
-                      ? 'absolute left-[calc(100%+2px)] top-1/2 -translate-y-[58%]'
-                      : 'absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2')
-                  + ' inline-flex items-center justify-center opacity-0 pointer-events-none transition-opacity duration-200 group-hover:opacity-100 '
-                  + (introPhase === 'sweep' ? '[animation:intro-icon-flash_1.1s_ease-in-out_both]' : '')
-                }
-                aria-hidden
-              >
-                {introPhase === 'dock' || introPhase === 'done' ? <ExternalLink size={12} /> : <ExternalLink size={34} />}
-              </span>
-            </span>
-        </div>
-      </div>
+      <Branding onComplete={() => setBrandingDone(true)} />
+
+      <CenteredSearchInput
+        visible={brandingDone}
+        value={url}
+        onChange={setUrl}
+        onSubmit={onDownload}
+        disabled={isRunning}
+        dock={dockInput}
+      />
 
       {/* Logs remain available if toggled on; input form removed for redesign */}
+      {brandingDone && dockInput && (
+        <DownloadStatus
+          url={url}
+          logs={logs}
+          phase={isRunning ? 'downloading' : error ? 'error' : lastOutputFile ? 'completed' : 'idle'}
+          error={error}
+          lastOutputFile={lastOutputFile}
+        />
+      )}
+
       {logsVisible && (
-        <div className="flex-1 min-h-0 rounded-[--radius] p-4 border border-border bg-card/60 backdrop-saturate-125 backdrop-blur-md shadow-md animate-[fadeUp_.25s_ease] flex flex-col gap-2 mx-3 my-3">
+        <div className="flex-1 min-h-0 rounded p-4 border border-border bg-card/60 backdrop-saturate-125 backdrop-blur-md shadow-md animate-[fadeUp_.25s_ease] flex flex-col gap-2 mx-3 my-3">
           <Label>Logs</Label>
-          <div className="flex-1 min-h-0 font-mono bg-secondary/40 border border-border rounded-[--radius] p-3 overflow-y-auto whitespace-pre-wrap" style={{ scrollbarWidth: 'thin' }}>
+          <div className="flex-1 min-h-0 font-mono bg-secondary/40 border border-border rounded p-3 overflow-y-auto whitespace-pre-wrap" style={{ scrollbarWidth: 'thin' }}>
             {logs.map((l, i) => {
               const cls = classifyLine(l);
               return (
@@ -208,12 +160,12 @@ export default function App() {
                   key={i}
                   className={
                     cls === 'error'
-                      ? 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-destructive bg-destructive/10'
+                      ? 'px-1.5 py-0.5 rounded border-l-2 border-l-destructive bg-destructive/10'
                       : cls === 'progress'
-                      ? 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-primary bg-primary/10'
+                      ? 'px-1.5 py-0.5 rounded border-l-2 border-l-primary bg-primary/10'
                       : cls === 'debug'
-                      ? 'px-1.5 py-0.5 rounded-[--radius] opacity-80'
-                      : 'px-1.5 py-0.5 rounded-[--radius] border-l-2 border-l-border'
+                      ? 'px-1.5 py-0.5 rounded opacity-80'
+                      : 'px-1.5 py-0.5 rounded border-l-2 border-l-border'
                   }
                 >
                   {l}
