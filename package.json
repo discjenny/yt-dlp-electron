@@ -1,15 +1,15 @@
 {
-  "name": "yt-dlp",
+  "name": "yt-dlp-electron",
   "version": "0.1.0",
-  "description": "Minimal yt-dlp desktop app (Electron + React + Bun)",
-  "author": "yt-dlp Desktop",
+  "description": "yt-dlp-electron: Minimal yt-dlp desktop app (Electron + React + Bun)",
+  "author": "wagner.dev",
   "module": "index.ts",
   "type": "module",
   "private": true,
   "main": "dist/main.js",
   "build": {
-    "productName": "yt-dlp Desktop",
-    "appId": "com.example.ytdlpdesktop",
+    "productName": "yt-dlp-electron",
+    "appId": "dev.wagner.ytdlp-electron",
     "icon": "build/icon.ico",
     "files": [
       "dist/**",
@@ -36,8 +36,10 @@
     "linux": {
       "target": ["AppImage"],
       "category": "AudioVideo",
-      "artifactName": "ytdlp-desktop-${version}-linux.${ext}",
-      "icon": "build/icons"
+      "artifactName": "yt-dlp-electron-${version}-linux.${ext}",
+      "icon": "build/icons",
+      "maintainer": "wagner.dev",
+      "vendor": "wagner.dev"
     },
     "win": {
       "target": [
@@ -46,35 +48,49 @@
           "arch": ["x64"]
         }
       ],
-      "artifactName": "ytdlp-desktop-${version}-win-${arch}.${ext}",
+      "artifactName": "yt-dlp-electron-${version}-win-${arch}.${ext}",
       "signAndEditExecutable": false,
       "icon": "build/icons/icon.ico",
-      "executableName": "ytdlp-desktop"
+      "executableName": "yt-dlp-electron",
+      "publisherName": "wagner.dev"
     },
     "nsis": {
-      "shortcutName": "yt-dlp Desktop",
+      "shortcutName": "yt-dlp-electron",
       "installerIcon": "build/icons/icon.ico",
       "uninstallerIcon": "build/icons/icon.ico"
     },
     "mac": {
       "target": ["dmg", "zip"],
       "category": "public.app-category.music",
-      "artifactName": "ytdlp-desktop-${version}-mac.${ext}"
+      "artifactName": "yt-dlp-electron-${version}-mac.${ext}",
+      "publisherName": "wagner.dev"
     }
   },
   "scripts": {
     "icons": "node scripts/build_icons.mjs",
-    "build": "bun run icons && bunx tailwindcss -i renderer/tailwind.css -o dist/tailwind.css -m && bun build app/main.ts --target node --external electron --minify --outfile dist/main.js && bun build app/preload.ts --target node --external electron --minify --outfile dist/preload.js && bun build renderer/main.tsx --minify --outfile dist/renderer.js && cp renderer/index.html renderer/styles.css dist/ && node scripts/copy_media.mjs",
+    "build:main": "bun build app/main.ts --target node --external electron --minify --outfile dist/main.js",
+    "build:preload": "bun build app/preload.ts --target node --external electron --minify --outfile dist/preload.js",
+    "build:renderer": "vite build",
+    "build": "bun run icons && bun run build:main && bun run build:preload && bun run build:renderer && node scripts/copy_media.mjs",
+    "dev:renderer": "bunx --yes vite --port 5173",
+    "dev:media": "node scripts/dev_media.mjs",
+    "dev:main": "bun build app/main.ts --target node --external electron --outfile dist/main.js --watch",
+    "dev:preload": "bun build app/preload.ts --target node --external electron --outfile dist/preload.js --watch",
+    "dev:electron": "wait-port 5173 && VITE_DEV=1 electron .",
+    "dev": "bun run dev:media && concurrently -k -n vite,main,preload,electron -c yellow,magenta,blue,cyan \"bun run dev:renderer\" \"bun run dev:main\" \"bun run dev:preload\" \"bun run dev:electron\"",
     "start": "bun run build && electron .",
     "prune:yt-dlp": "bun run scripts/prune_yt_dlp.ts",
     "vendor:yt-dlp": "scripts/build_vendored_yt_dlp.sh",
     "vendor:ffmpeg": "scripts/build_vendored_ffmpeg.sh"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.12",
     "@types/bun": "latest",
     "@types/electron": "^1.6.12",
     "@types/node": "^24.3.0",
+    "@vitejs/plugin-react-swc": "^3.7.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
     "electron": "^37.3.1",
     "electron-builder": "^26.0.12",
     "ffmpeg-static": "^5.2.0",
@@ -83,7 +99,9 @@
     "postcss": "^8.4.47",
     "rcedit": "^4.0.1",
     "sharp": "^0.33.5",
-    "tailwindcss": "^3.4.13"
+    "tailwindcss": "^4.1.0",
+    "vite": "^5.4.8",
+    "wait-port": "^1.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"

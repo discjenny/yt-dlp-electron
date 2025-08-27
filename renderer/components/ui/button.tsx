@@ -8,12 +8,12 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   size?: 'sm' | 'md';
 };
 
-const base = 'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
+const base = 'inline-flex hover:cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors transition-transform active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50';
 const variants: Record<Variant, string> = {
-  default: 'bg-[var(--panel)] text-[var(--fg)] hover:brightness-110 border border-[var(--border)]',
-  secondary: 'bg-[#14151c] text-[var(--fg)] hover:brightness-110 border border-[var(--border)]',
-  destructive: 'bg-[var(--danger)] text-white hover:brightness-110 border border-[var(--border)]',
-  outline: 'bg-transparent text-[var(--fg)] hover:bg-[#111217] border border-[var(--border)]',
+  default: 'bg-card text-foreground hover:brightness-110 border border-border',
+  secondary: 'bg-secondary text-foreground hover:brightness-110 border border-border',
+  destructive: 'hover:bg-destructive/30 bg-destructive/10 text-destructive-foreground hover:brightness-110 border border-destructive/30',
+  outline: 'bg-background/10 text-foreground hover:bg-card/50 border border-border',
 };
 const sizes = {
   sm: 'h-8 px-3',

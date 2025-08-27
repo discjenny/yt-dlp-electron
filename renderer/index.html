@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>yt-dlp Desktop</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="tailwind.css" />
+    <meta name="color-scheme" content="dark light" />
+    <title>yt-dlp-electron</title>
+    <!-- Styles are imported in main.tsx for Vite -->
   </head>
-  <body>
-    <video id="bg" class="bg-video" autoplay muted loop playsinline></video>
-    <div class="bg-video-mask"></div>
-    <div id="root" class="h-full app-surface"></div>
-    <script type="module" src="renderer.js"></script>
+  <body class="overflow-hidden bg-background text-foreground">
+    <video id="bg" class="fixed inset-0 object-cover saturate-[1.1] contrast-[1.05] brightness-75 pointer-events-none -z-10" autoplay muted loop playsinline></video>
+    <div class="fixed inset-0 pointer-events-none -z-10 bg-gradient-to-b from-black/35 to-black/20"></div>
+    <div id="root" class="min-h-dvh relative z-[1]"></div>
+    <script type="module" src="/main.tsx"></script>
   </body>
 </html>

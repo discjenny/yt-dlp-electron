@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
@@ -7,6 +7,11 @@ function getDistDir(): string {
   // When running via `electron .`, app.getAppPath() is project root
   // Built assets live in `<root>/dist`
   return path.join(app.getAppPath(), 'dist');
+}
+
+function getViteDevServerUrl(): string | null {
+  const port = process.env.VITE_DEV_SERVER_PORT || '5173';
+  return `http://localhost:${port}`;
 }
 
 function getResourcesDir(): string {
@@ -25,6 +30,7 @@ let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
   const isDev = !app.isPackaged;
+  const useDevServer = process.env.VITE_DEV === '1';
   const win = new BrowserWindow({
     width: 620,
     height: 580,
@@ -37,6 +43,7 @@ function createWindow() {
     backgroundColor: '#0b0c10',
     frame: process.platform !== 'win32',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    title: 'yt-dlp-electron',
     icon: app.isPackaged
       ? path.join(process.resourcesPath, 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png')
       : path.join(getResourcesDir(), 'build', 'icons', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
@@ -48,9 +55,14 @@ function createWindow() {
     },
   });
 
-  win.loadFile(path.join(getDistDir(), 'index.html'));
+  if (useDevServer) {
+    const devUrl = getViteDevServerUrl();
+    win.loadURL(`${devUrl}/`);
+  } else {
+    win.loadFile(path.join(getDistDir(), 'index.html'));
+  }
 
-  if (isDev) {
+  if (useDevServer) {
     win.webContents.openDevTools({ mode: 'detach' });
   }
 
@@ -67,7 +79,17 @@ app.whenReady().then(() => {
   // Must be called before creating any BrowserWindow
   if (process.platform === 'win32') {
     // Set a stable explicit AppUserModelID to bind taskbar/shortcuts to our exe + icon
-    app.setAppUserModelId('com.example.ytdlpdesktop');
+    app.setAppUserModelId('dev.wagner.ytdlp-electron');
+  }
+
+  // Improve About panel on macOS
+  if (process.platform === 'darwin') {
+    app.setAboutPanelOptions({
+      applicationName: 'yt-dlp-electron',
+      applicationVersion: app.getVersion(),
+      authors: ['wagner.dev'],
+      credits: 'Created by wagner.dev',
+    } as any);
   }
 
   createWindow();
@@ -121,6 +143,16 @@ ipcMain.on('ui:set-logs-visible', (_evt, visible: boolean) => {
   const compactHeight = 400; // smaller height without logs
   const fullHeight = 580; // original height
   mainWindow.setSize(w, visible ? fullHeight : compactHeight);
+});
+
+ipcMain.handle('open-external', async (_evt, url: string) => {
+  try {
+    if (!url || typeof url !== 'string') return false;
+    await shell.openExternal(url);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 function resolvePythonCommand(): string[] {

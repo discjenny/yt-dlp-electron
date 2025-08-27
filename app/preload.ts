@@ -12,6 +12,7 @@ declare global {
       setDebug: (enabled: boolean) => void;
       windowAction: (action: 'minimize' | 'close') => void;
       setLogsVisible: (visible: boolean) => void;
+      openExternal: (url: string) => Promise<boolean>;
     };
   }
 }
@@ -34,4 +35,5 @@ contextBridge.exposeInMainWorld('api', {
   setLogsVisible: (visible: boolean) => {
     ipcRenderer.send('ui:set-logs-visible', visible);
   },
+  openExternal: (url: string) => ipcRenderer.invoke('open-external', url),
 });

@@ -15,33 +15,28 @@ export function TopBar(props: {
 }) {
   const { running, hasError, debug, onToggleDebug, logsVisible, onToggleLogs } = props;
   return (
-    <div className="header">
+    <div className="flex items-center justify-between px-[12px] py-[8px] border-b border-border bg-card/40 backdrop-saturate-110 backdrop-blur-md select-none [--app-region:drag] [-webkit-app-region:var(--app-region)]">
       <div className="flex items-center gap-2">
-        <div className="title">yt-dlp Desktop</div>
-        <div className="sub">Minimal GUI for video downloads</div>
+        <div className="font-semibold tracking-[0.2px] leading-none text-[18px]">yt-dlp-electron</div>
       </div>
-      <div className="controls flex items-center gap-2">
-        <div className={`badge ${running ? 'running' : hasError ? 'error' : ''}`}>
-          <span className="dot" />
-          {running ? 'Running' : hasError ? 'Error' : 'Idle'}
-        </div>
+      <div className="ml-auto flex items-center gap-2 [--app-region:no-drag] [-webkit-app-region:var(--app-region)]">
         <Popover>
           <PopoverTrigger asChild>
-            <Button aria-label="Settings" size="sm">
+            <Button aria-label="Settings" size="sm" tabIndex={-1} variant="outline">
               <Settings size={16} />
             </Button>
           </PopoverTrigger>
           <PopoverPortal>
-            <PopoverContent sideOffset={8}>
-              <div className="flex items-center justify-between gap-6 mb-3">
-                <div className="help">Debug mode</div>
+            <PopoverContent sideOffset={10}>
+              <div className="flex items-center justify-between gap-8 mb-2">
+                <div className="text-xs text-muted-foreground">Debug mode</div>
                 <Switch checked={debug} onCheckedChange={(v) => onToggleDebug(!!v)} />
               </div>
-              <div className="flex items-center justify-between gap-6">
-                <div className="help">Show logs</div>
+              <div className="flex items-center justify-between gap-8">
+                <div className="text-xs text-muted-foreground">Show logs</div>
                 <Switch checked={logsVisible} onCheckedChange={(v) => onToggleLogs(!!v)} />
               </div>
-              <PopoverArrow className="fill-[var(--panel)]" />
+              <PopoverArrow className="fill-card" />
             </PopoverContent>
           </PopoverPortal>
         </Popover>
