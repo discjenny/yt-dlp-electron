@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'node:path';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
+import { initDatabase, insertDownloadRow, insertLogRow, updateDownloadCompleted, closeDatabase } from './database';
 
 function getDistDir(): string {
   // When running via `electron .`, app.getAppPath() is project root
@@ -96,12 +98,20 @@ app.whenReady().then(() => {
 
   createWindow();
 
+  try {
+    initDatabase();
+  } catch (err) {
+    // Database is optional. Continue without persistence if initialization fails.
+    console.error('Database init failed:', err);
+  }
+
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
 
 app.on('window-all-closed', () => {
+  try { closeDatabase(); } catch {}
   if (process.platform !== 'darwin') app.quit();
 });
 
@@ -314,26 +324,54 @@ ipcMain.handle('start-download', async (event, payload: { url: string; outputDir
   }
 
   try {
-    let lastPath = '';
-    const result = await spawnYtDlp(url.trim(), outputDir.trim(), (line) => {
-      const text = line.trim();
-      const savedFilePattern = /^(?:[a-zA-Z]:\\|\/)\S.*\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i;
-      if (savedFilePattern.test(text)) {
-        lastPath = text;
+    const downloadId = crypto.randomUUID();
+    try {
+      insertDownloadRow({ id: downloadId, url: url.trim(), outputDir: outputDir.trim(), startedAt: Date.now() });
+    } catch {}
+
+    // Fire-and-forget worker to run spawn and emit completion
+    (async () => {
+      let lastPath = '';
+      try {
+        const result = await spawnYtDlp(url.trim(), outputDir.trim(), (line) => {
+          const text = line.trim();
+          const savedFilePattern = /^(?:[a-zA-Z]:\\|\/)\S.*\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i;
+          if (savedFilePattern.test(text)) {
+            lastPath = text;
+          }
+          event.sender.send('download-log', line, downloadId);
+          try {
+            const level = /^\[error\]/i.test(text)
+              ? 'error'
+              : /^\[debug\]/i.test(text)
+              ? 'debug'
+              : /^\[download\]/i.test(text)
+              ? 'progress'
+              : 'info';
+            insertLogRow(downloadId, line, level);
+          } catch {}
+        });
+
+        if (result.code === 0) {
+          try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: null, completedAt: Date.now(), status: 'completed' }); } catch {}
+          event.sender.send('download-complete', { id: downloadId, success: true, path: lastPath });
+        } else {
+          const details = (result.stderr || result.stdout || '').split('\n').find((l) => /error|Traceback|Exception/i.test(l)) || '';
+          const humanMessage = result.code === null
+            ? 'Download failed. Python may be missing.'
+            : `yt-dlp exited with code ${result.code}.${details ? ' ' + details : ''}`;
+          try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: humanMessage, completedAt: Date.now(), status: 'error' }); } catch {}
+          event.sender.send('download-complete', { id: downloadId, success: false, error: humanMessage });
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: message, completedAt: Date.now(), status: 'error' }); } catch {}
+        event.sender.send('download-complete', { id: downloadId, success: false, error: message });
       }
-      event.sender.send('download-log', line);
-    });
+    })();
 
-    if (result.code === 0) {
-      return { success: true, path: lastPath } as any;
-    }
-
-    const details = (result.stderr || result.stdout || '').split('\n').find((l) => /error|Traceback|Exception/i.test(l)) || '';
-    const humanMessage = result.code === null
-      ? 'Download failed. Python may be missing.'
-      : `yt-dlp exited with code ${result.code}.${details ? ' ' + details : ''}`;
-
-    return { success: false, error: humanMessage };
+    // Return immediately with the id so renderer can track concurrently
+    return { success: true, id: downloadId } as any;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return { success: false, error: message };

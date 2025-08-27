@@ -6,8 +6,8 @@ declare global {
   interface Window {
     api: {
       selectOutputFolder: () => Promise<string | null>;
-      startDownload: (payload: { url: string; outputDir: string }) => Promise<DownloadResult>;
-      onDownloadLog: (listener: (line: string) => void) => () => void;
+      startDownload: (payload: { url: string; outputDir: string }) => Promise<DownloadResult & { id?: string }>;
+      onDownloadLog: (listener: (line: string, id?: string) => void) => () => void;
       getDefaultDownloads: () => Promise<string>;
       setDebug: (enabled: boolean) => void;
       windowAction: (action: 'minimize' | 'close') => void;
@@ -20,10 +20,15 @@ declare global {
 contextBridge.exposeInMainWorld('api', {
   selectOutputFolder: () => ipcRenderer.invoke('select-output-folder'),
   startDownload: (payload: { url: string; outputDir: string }) => ipcRenderer.invoke('start-download', payload),
-  onDownloadLog: (listener: (line: string) => void) => {
-    const handler = (_: unknown, line: string) => listener(line);
+  onDownloadLog: (listener: (line: string, id?: string) => void) => {
+    const handler = (_: unknown, line: string, id?: string) => listener(line, id);
     ipcRenderer.on('download-log', handler);
     return () => ipcRenderer.removeListener('download-log', handler);
+  },
+  onDownloadComplete: (listener: (payload: { id: string; success: boolean; path?: string; error?: string }) => void) => {
+    const handler = (_: unknown, payload: { id: string; success: boolean; path?: string; error?: string }) => listener(payload);
+    ipcRenderer.on('download-complete', handler);
+    return () => ipcRenderer.removeListener('download-complete', handler);
   },
   getDefaultDownloads: () => ipcRenderer.invoke('get-default-downloads'),
   setDebug: (enabled: boolean) => {

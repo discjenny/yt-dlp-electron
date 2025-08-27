@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Input } from './ui/input';
 import { Button } from './ui/button';
 import { ClipboardPaste } from 'lucide-react';
@@ -13,6 +13,7 @@ export function CenteredSearchInput({
   className,
   autoFocusOnVisible = true,
   dock = false,
+  onDockComplete,
 }: {
   visible: boolean;
   value: string;
@@ -23,8 +24,11 @@ export function CenteredSearchInput({
   className?: string;
   autoFocusOnVisible?: boolean;
   dock?: boolean;
+  onDockComplete?: () => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const transitionRef = useRef<HTMLDivElement>(null);
+  const [docked, setDocked] = useState(false);
 
   useEffect(() => {
     if (visible && autoFocusOnVisible) {
@@ -36,8 +40,24 @@ export function CenteredSearchInput({
 
   const containerClasses = useMemo(() => {
     const base = 'absolute inset-0 z-20 pointer-events-none flex items-center justify-center ';
-    return base + (visible ? 'opacity-100 animate-[fadeUp_.3s_ease-out_both]' : 'opacity-0 pointer-events-none');
+    return base + (visible ? 'opacity-0 animate-[fadeUp_.3s_ease-out_both]' : 'opacity-0 pointer-events-none');
   }, [visible]);
+
+  useEffect(() => {
+    if (!dock) return;
+    const el = transitionRef.current;
+    if (!el) return;
+    const handleEnd = (e: TransitionEvent) => {
+      if (e.propertyName === 'transform') {
+        setTimeout(() => setDocked(true), 100);
+        onDockComplete?.();
+      }
+    };
+    el.addEventListener('transitionend', handleEnd, { once: true } as any);
+    return () => {
+      el.removeEventListener('transitionend', handleEnd as any);
+    };
+  }, [dock, onDockComplete]);
 
   return (
     <div className={containerClasses} aria-hidden={!visible} style={{ ['--dock-dy' as any]: 'calc(50vh - 50px)' }}>
@@ -46,6 +66,7 @@ export function CenteredSearchInput({
           className={
             'relative will-change-transform transition-[transform] duration-[700ms] ease-[cubic-bezier(0.22,0.61,0.36,1)]'
           }
+          ref={transitionRef}
           style={{ transform: dock ? 'translateY(var(--dock-dy))' : 'translateY(0)' }}
         >
           <Input
@@ -57,7 +78,9 @@ export function CenteredSearchInput({
             value={value}
             onChange={(e) => onChange(e.currentTarget.value)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
+              const isEnter = e.key === 'Enter' || (e as any).code === 'Enter' || e.key === 'NumpadEnter';
+              if (isEnter && !disabled) {
+                e.preventDefault();
                 onSubmit?.();
               }
             }}
@@ -65,7 +88,8 @@ export function CenteredSearchInput({
             placeholder={placeholder}
             className={
               'h-12 pr-12 text-base rounded bg-card/60 border-border/70 text-foreground placeholder:text-muted-foreground/80 ' +
-              'backdrop-blur-xl backdrop-saturate-150 shadow-lg focus-visible:ring-0 focus-visible:border-border/80'
+              'backdrop-blur-xl backdrop-saturate-150 shadow-lg focus-visible:ring-0 focus-visible:border-border/80 ' +
+              (docked ? 'bg-transparent' : '')
             }
           />
           <Button
@@ -83,7 +107,7 @@ export function CenteredSearchInput({
                 }
               } catch {}
             }}
-            className="absolute top-1/2 -translate-y-1/2 right-2 h-8 w-8 p-0 grid place-items-center"
+            className="absolute top-1/2 bg-background/10 backdrop-blur-md -translate-y-1/2 right-2 h-8 w-8 p-0 grid place-items-center"
           >
             <ClipboardPaste size={16} />
           </Button>

@@ -108,14 +108,16 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.0.7",
+    "@radix-ui/react-scroll-area": "^1.2.10",
+    "@radix-ui/react-switch": "^1.0.3",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.8",
-    "@radix-ui/react-popover": "^1.0.7",
-    "@radix-ui/react-switch": "^1.0.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
-    "tailwind-merge": "^2.5.3",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "sqlite3": "^5.1.7",
+    "tailwind-merge": "^2.5.3"
   }
 }

@@ -42,6 +42,18 @@
   body { font-family: var(--font-sans); }
 }
 
+@layer utilities {
+  .fancy-scroll { scrollbar-width: none; position: relative; }
+  .fancy-scroll:hover { scrollbar-width: thin; }
+  .fancy-scroll::-webkit-scrollbar { width: 0px; }
+  .fancy-scroll:hover::-webkit-scrollbar { width: 8px; }
+  .fancy-scroll:hover::-webkit-scrollbar-track { background: transparent; margin-block: 6px; }
+  .fancy-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklab, var(--color-border) 40%, transparent);
+    border-radius: 9999px; border: 2px solid transparent; background-clip: padding-box;
+  }
+}
+
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
