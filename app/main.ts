@@ -10,7 +10,7 @@ function getDistDir(): string {
 }
 
 function getViteDevServerUrl(): string | null {
-  const port = process.env.VITE_DEV_SERVER_PORT || '5173';
+  const port = process.env.VITE_DEV_SERVER_PORT || '5175';
   return `http://localhost:${port}`;
 }
 

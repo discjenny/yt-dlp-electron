@@ -10,12 +10,12 @@ export default defineConfig({
 	// Ensure file:// production works with relative asset URLs
 	base: './',
 	server: {
-		port: 5173,
+		port: 5175,
 		strictPort: true,
 		hmr: true,
 	},
 	preview: {
-		port: 5173,
+		port: 5175,
 		strictPort: true,
 	},
 	build: {
