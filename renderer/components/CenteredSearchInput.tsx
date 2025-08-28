@@ -19,7 +19,7 @@ export function CenteredSearchInput({
   value: string;
   placeholder?: string;
   onChange: (next: string) => void;
-  onSubmit?: () => void;
+  onSubmit?: (value: string) => void;
   disabled?: boolean;
   className?: string;
   autoFocusOnVisible?: boolean;
@@ -29,6 +29,8 @@ export function CenteredSearchInput({
   const inputRef = useRef<HTMLInputElement>(null);
   const transitionRef = useRef<HTMLDivElement>(null);
   const [docked, setDocked] = useState(false);
+  const completedRef = useRef(false);
+  const fallbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (visible && autoFocusOnVisible) {
@@ -47,15 +49,28 @@ export function CenteredSearchInput({
     if (!dock) return;
     const el = transitionRef.current;
     if (!el) return;
+    completedRef.current = false;
+    const markComplete = () => {
+      if (completedRef.current) return;
+      completedRef.current = true;
+      setTimeout(() => setDocked(true), 100);
+      onDockComplete?.();
+    };
     const handleEnd = (e: TransitionEvent) => {
-      if (e.propertyName === 'transform') {
-        setTimeout(() => setDocked(true), 100);
-        onDockComplete?.();
+      if (!e || !('propertyName' in e)) return markComplete();
+      if ((e as any).propertyName === 'transform' || (e as any).propertyName === 'all') {
+        markComplete();
       }
     };
-    el.addEventListener('transitionend', handleEnd, { once: true } as any);
+    el.addEventListener('transitionend', handleEnd as any, { once: true } as any);
+    // Fallback in case transitionend doesn't fire
+    try { fallbackTimerRef.current = window.setTimeout(markComplete, 900); } catch {}
     return () => {
-      el.removeEventListener('transitionend', handleEnd as any);
+      try { el.removeEventListener('transitionend', handleEnd as any); } catch {}
+      if (fallbackTimerRef.current != null) {
+        try { window.clearTimeout(fallbackTimerRef.current); } catch {}
+        fallbackTimerRef.current = null;
+      }
     };
   }, [dock, onDockComplete]);
 
@@ -81,7 +96,7 @@ export function CenteredSearchInput({
               const isEnter = e.key === 'Enter' || (e as any).code === 'Enter' || e.key === 'NumpadEnter';
               if (isEnter && !disabled) {
                 e.preventDefault();
-                onSubmit?.();
+                onSubmit?.((e.currentTarget as HTMLInputElement).value);
               }
             }}
             disabled={disabled}
@@ -103,7 +118,7 @@ export function CenteredSearchInput({
                 const text = await navigator.clipboard.readText();
                 if (text) {
                   onChange(text);
-                  onSubmit?.();
+                  onSubmit?.(text);
                 }
               } catch {}
             }}

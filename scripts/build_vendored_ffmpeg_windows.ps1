@@ -1,9 +1,16 @@
 # Build or fetch ffmpeg/ffprobe for Windows into vendor/bin
 $ErrorActionPreference = "Stop"
 
+$tlsSet = $false
+try {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+  $tlsSet = $true
+} catch {}
+
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $OutDir = Join-Path $Root "vendor\bin"
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
+$ForcePrebuilt = $env:FORCE_PREBUILT_FFMPEG -eq '1'
 
 # Strategy: if MSYS2 is installed, attempt a local build. Otherwise, fallback to
 # downloading a known-good static build (Gyan.dev). You can replace this URL source
@@ -36,6 +43,7 @@ function Build-With-MSYS2 {
 }
 
 function Fetch-Prebuilt {
+  Write-Host "[info] Fetching prebuilt ffmpeg/ffprobe (TLS set=$tlsSet)"
   # Try multiple sources in order. First valid URL wins.
   $urls = @(
     # yt-dlp maintained builds (recommended)
@@ -49,6 +57,7 @@ function Fetch-Prebuilt {
   # If Node module ffmpeg-static is present on Windows, use it directly.
   $ffmpegStaticPath = Join-Path $Root "node_modules\ffmpeg-static\ffmpeg.exe"
   if (Test-Path $ffmpegStaticPath) {
+    Write-Host "[info] Using ffmpeg from ffmpeg-static: $ffmpegStaticPath"
     Copy-Item -Force $ffmpegStaticPath (Join-Path $OutDir "ffmpeg.exe")
   }
 
@@ -59,6 +68,7 @@ function Fetch-Prebuilt {
   )
   foreach ($p in $probeCandidates) {
     if (-not (Test-Path (Join-Path $OutDir "ffprobe.exe")) -and (Test-Path $p)) {
+      Write-Host "[info] Using ffprobe from static module: $p"
       Copy-Item -Force $p (Join-Path $OutDir "ffprobe.exe")
       break
     }
@@ -77,6 +87,7 @@ function Fetch-Prebuilt {
   foreach ($u in $urls) {
     try {
       Remove-Item -Force -ErrorAction SilentlyContinue $zipPath
+      Write-Host "[info] Downloading ffmpeg package from $u"
       Invoke-WebRequest -Uri $u -OutFile $zipPath -UseBasicParsing
       $downloaded = $true
       break
@@ -85,25 +96,29 @@ function Fetch-Prebuilt {
     }
   }
 
-  if (-not $downloaded) { throw "Failed to download ffmpeg from all sources" }
+  if (-not $downloaded) { throw "[fatal] Failed to download ffmpeg from all sources" }
 
   Expand-Archive -Path $zipPath -DestinationPath $extractTo -Force
   $ffExe = Get-ChildItem -Path $extractTo -Recurse -Filter ffmpeg.exe | Select-Object -First 1
   $fpExe = Get-ChildItem -Path $extractTo -Recurse -Filter ffprobe.exe | Select-Object -First 1
-  if (-not $ffExe) { throw "ffmpeg.exe not found in downloaded package" }
-  if (-not $fpExe) { throw "ffprobe.exe not found in downloaded package" }
+  if (-not $ffExe) { throw "[fatal] ffmpeg.exe not found in downloaded package" }
+  if (-not $fpExe) { throw "[fatal] ffprobe.exe not found in downloaded package" }
   Copy-Item -Force $ffExe.FullName (Join-Path $OutDir "ffmpeg.exe")
   Copy-Item -Force $fpExe.FullName (Join-Path $OutDir "ffprobe.exe")
 }
 
 if ((Test-Path (Join-Path $OutDir "ffmpeg.exe")) -and (Test-Path (Join-Path $OutDir "ffprobe.exe"))) {
-  Write-Host "ffmpeg/ffprobe already exist in vendor\\bin"
+  Write-Host "[info] ffmpeg/ffprobe already exist in vendor\\bin"
 } else {
-  if (Test-MSYS2) {
+  if (-not $ForcePrebuilt -and (Test-MSYS2)) {
     if (-not (Build-With-MSYS2)) { Fetch-Prebuilt }
   } else {
     Fetch-Prebuilt
   }
 }
 
-Write-Host "Vendored ffmpeg/ffprobe ready in vendor\\bin"
+if ((Test-Path (Join-Path $OutDir "ffmpeg.exe")) -and (Test-Path (Join-Path $OutDir "ffprobe.exe"))) {
+  Write-Host "[done] Vendored ffmpeg/ffprobe ready in vendor\\bin"
+} else {
+  throw "[fatal] ffmpeg/ffprobe were not produced in vendor\\bin"
+}

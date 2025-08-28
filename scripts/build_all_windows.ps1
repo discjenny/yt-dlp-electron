@@ -53,7 +53,7 @@ if (Test-Path $rcedit) {
   $exePath = Join-Path $Root "release\win-unpacked\ytdlp-desktop.exe"
   $icoPath = Join-Path $Root "build\icon.ico"
   if (-not (Test-Path $icoPath)) { $icoPath = Join-Path $Root "build\icons\icon.ico" }
-  if (Test-Path $exePath -and (Test-Path $icoPath)) {
+  if ((Test-Path $exePath) -and (Test-Path $icoPath)) {
     Write-Host "[info] Applying icon to exe via rcedit"
     & $rcedit "$exePath" --set-icon "$icoPath"
   } else {

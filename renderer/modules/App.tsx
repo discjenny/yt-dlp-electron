@@ -70,7 +70,10 @@ export default function App() {
       const { id, success, path, error } = payload || ({} as any);
       setDownloads((prev) => prev.map((d) => (d.id === id ? { ...d, phase: success ? 'completed' : 'error', lastOutputFile: path || d.lastOutputFile, error: error || d.error } : d)));
     });
-    return () => unsubscribe();
+    return () => {
+      try { unsubscribe(); } catch {}
+      try { unComplete?.(); } catch {}
+    };
   }, []);
 
   useEffect(() => {
@@ -108,13 +111,34 @@ export default function App() {
     if (folder) setOutputDir(folder);
   };
 
-  const onDownload = async () => {
+  const onDownload = async (submitted?: string) => {
     setError(null);
     setIsRunning(true);
     setDockInput(true);
     if (!everDocked) setDockDone(false);
-    const normalizedUrl = url.match(/^https?:\/\//i) ? url : `https://${url}`;
+    const sourceUrl = (submitted ?? url ?? '').trim();
+    const normalizedUrl = sourceUrl.startsWith('http://') || sourceUrl.startsWith('https://') ? sourceUrl : (sourceUrl ? `https://${sourceUrl}` : '');
+    if (!normalizedUrl) {
+      setIsRunning(false);
+      setError('Please enter a valid URL.');
+      return;
+    }
     const api = (globalThis as any).api as Window['api'];
+    let outDir = (outputDir || '').trim();
+    if (!outDir) {
+      try {
+        const def = await api.getDefaultDownloads();
+        if (def) {
+          outDir = def;
+          setOutputDir(def);
+        }
+      } catch {}
+      if (!outDir) {
+        setIsRunning(false);
+        setError('Please choose an output folder.');
+        return;
+      }
+    }
     // Optimistically create a local entry so logs can attach even if ID lags
     const tempId = `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     setDownloads((prev) => [
@@ -128,7 +152,7 @@ export default function App() {
         if (el) el.scrollTop = el.scrollHeight;
       } catch {}
     }, 0);
-    const result = await api.startDownload({ url: normalizedUrl, outputDir });
+    const result = await api.startDownload({ url: normalizedUrl, outputDir: outDir });
     setIsRunning(false);
 
     const assignedId: string = (result as any && (result as any).id) ? String((result as any).id) : tempId;
@@ -182,6 +206,7 @@ export default function App() {
         value={url}
         onChange={setUrl}
         onSubmit={onDownload}
+        disabled={isRunning}
         dock={dockInput}
         onDockComplete={() => {
           setDockDone(true);

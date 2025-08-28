@@ -22,8 +22,7 @@ export function DownloadStatus({
     <div className="rounded border border-border/60 bg-card/30 backdrop-saturate-125 backdrop-blur-md shadow-md animate-[fadeUp_.25s_ease] p-2 flex flex-col gap-1 min-w-0">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="text-sm text-muted-foreground shrink-0">Download</div>
-          <div className="text-xs truncate" title={url}>{url}</div>
+          <div className="text-xs truncate" title={url}>{url.slice(0, 60) + (url.length > 60 ? '...' : '')}</div>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-xs text-muted-foreground">
@@ -52,13 +51,11 @@ export function DownloadStatus({
       </div>
       {expanded ? (
         <div id={sectionId} className="text-xs text-muted-foreground">
-          {error ? (
-            <div className="text-red-300">{error}</div>
-          ) : lastOutputFile ? (
-            <div>Saved to: {lastOutputFile}</div>
-          ) : logs.length ? (
-            <div className="max-h-24 overflow-y-auto whitespace-pre-wrap bg-secondary/30 border border-border/60 rounded p-2" style={{ scrollbarWidth: 'thin' }}>
-              {logs.slice(-50).join('\n')}
+          {error ? <div className="text-red-300 mb-2">{error}</div> : null}
+          {lastOutputFile ? <div className="mb-2">Saved to: {lastOutputFile}</div> : null}
+          {logs.length ? (
+            <div className="max-h-40 overflow-y-auto whitespace-pre-wrap bg-secondary/30 border border-border/60 rounded p-2" style={{ scrollbarWidth: 'thin' }}>
+              {logs.slice(-200).join('\n')}
             </div>
           ) : null}
         </div>

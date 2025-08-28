@@ -30,6 +30,28 @@ function getVendorBinDir(): string {
     : path.join(getResourcesDir(), 'vendor', 'bin');
 }
 
+function resolveFfmpegTools(): { ffmpegExe: string | null; ffprobeExe: string | null; ffDir: string } {
+  const vendorBinDir = getVendorBinDir();
+  const ffmpegName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const ffprobeName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+  const ffmpegCandidates = [
+    path.join(vendorBinDir, ffmpegName),
+    path.join(vendorBinDir, 'ffmpeg', ffmpegName),
+    path.join(vendorBinDir, 'ffmpeg'),
+    path.join(vendorBinDir, 'ffmpeg', 'ffmpeg'),
+  ];
+  const ffprobeCandidates = [
+    path.join(vendorBinDir, ffprobeName),
+    path.join(vendorBinDir, 'ffprobe', ffprobeName),
+    path.join(vendorBinDir, 'ffprobe'),
+    path.join(vendorBinDir, 'ffprobe', 'ffprobe'),
+  ];
+  const resolvedFfmpegExe = ffmpegCandidates.find((p) => fs.existsSync(p)) || null;
+  const resolvedFfprobeExe = ffprobeCandidates.find((p) => fs.existsSync(p)) || null;
+  const ffmpegDirForArgs = resolvedFfmpegExe ? path.dirname(resolvedFfmpegExe) : vendorBinDir;
+  return { ffmpegExe: resolvedFfmpegExe, ffprobeExe: resolvedFfprobeExe, ffDir: ffmpegDirForArgs };
+}
+
 let mainWindow: BrowserWindow | null = null;
 
 function createWindow() {
@@ -199,8 +221,9 @@ function spawnYtDlp(
       const ytDlpRoot = path.join(app.getAppPath(), 'yt-dlp');
       const vendorBinDir = getVendorBinDir();
       const vendoredYtDlp = path.join(vendorBinDir, process.platform === 'win32' ? 'yt-dlp.exe' : 'yt-dlp');
-      const vendoredFfmpegDir = vendorBinDir; // keep ffmpeg and ffprobe here
-      const vendoredFfmpegExe = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+      // Resolve ffmpeg/ffprobe robustly
+      const { ffmpegExe: resolvedFfmpegExe, ffprobeExe: resolvedFfprobeExe, ffDir: ffmpegDirForArgs } = resolveFfmpegTools();
+      const ffprobeDirForArgs = resolvedFfprobeExe ? path.dirname(resolvedFfprobeExe) : ffmpegDirForArgs;
 
       // Do not use -E, we need PYTHONPATH to be honored
       const argsBase = [
@@ -209,43 +232,50 @@ function spawnYtDlp(
         '--ignore-config',
         ...(DEBUG_ENABLED ? ['-v'] : []),
         '-f', 'bestaudio',
-        '--extract-audio',
-        '--audio-format', 'aac',
-        '--audio-quality', '0',
         '--no-write-info-json',
         '--no-write-description',
         '--no-write-annotations',
         '--no-write-thumbnail',
         '--no-write-playlist-metafiles',
         '--no-write-comments',
-        '--print', 'after_move:filepath',
       ];
       const outputTemplateArgs = ['-P', outputDir, '-o', '%(title)s.%(ext)s'];
+      // Avoid using --print hooks that may be unstable across versions
+      const printArgs: string[] = [];
+      // Prefer ffmpeg; provide location via env (FFMPEG_LOCATION) instead of CLI to avoid edge-case bugs
+      const ffmpegArgs = ['--prefer-ffmpeg'];
       const fullArgs = [
         ...argsBase,
-        '--ffmpeg-location', vendoredFfmpegExe,
-        '--prefer-ffmpeg',
-        url,
+        ...ffmpegArgs,
         ...outputTemplateArgs,
+        ...printArgs,
+        url,
       ];
 
       // Debug info to help diagnose environment and paths
-      if (DEBUG_ENABLED) {
-        try {
-          const ffmpegPath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
-          const ffprobePath = path.join(vendoredFfmpegDir, process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe');
-          sendLog(`[debug] Debug mode ON`);
-          sendLog(`[debug] vendoredYtDlp=${vendoredYtDlp} exists=${fs.existsSync(vendoredYtDlp)}`);
-          sendLog(`[debug] ffmpeg=${ffmpegPath} exists=${fs.existsSync(ffmpegPath)} | ffprobe=${ffprobePath} exists=${fs.existsSync(ffprobePath)}`);
-          sendLog(`[debug] outputDir=${outputDir}`);
+      try {
+        // Always show a concise startup summary so users can diagnose issues
+        sendLog(`[info] Starting yt-dlp (debug=${DEBUG_ENABLED ? 'on' : 'off'})`);
+        sendLog(`[info] yt-dlp exe: ${vendoredYtDlp} (exists=${fs.existsSync(vendoredYtDlp)})`);
+        sendLog(`[info] ffmpeg: ${resolvedFfmpegExe || 'none'} | ffprobe: ${resolvedFfprobeExe || 'none'}`);
+        sendLog(`[info] output dir: ${outputDir}`);
+        if (DEBUG_ENABLED) {
+          sendLog(`[debug] ffmpegDirForArgs=${ffmpegDirForArgs}`);
           sendLog(`[debug] args=${JSON.stringify(fullArgs)}`);
-        } catch {}
-      }
+        }
+      } catch {}
 
       const envBase = { ...process.env, PYTHONPATH: ytDlpRoot } as NodeJS.ProcessEnv;
+      const pathSegments: string[] = [];
+      if (resolvedFfmpegExe) pathSegments.push(path.dirname(resolvedFfmpegExe));
+      if (resolvedFfprobeExe) pathSegments.push(path.dirname(resolvedFfprobeExe));
+      pathSegments.push(vendorBinDir);
       const extendedEnv: NodeJS.ProcessEnv = {
         ...envBase,
-        PATH: `${vendoredFfmpegDir}${path.delimiter}${envBase.PATH || ''}`,
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1',
+        FFMPEG_LOCATION: ffmpegDirForArgs,
+        PATH: `${pathSegments.join(path.delimiter)}${path.delimiter}${envBase.PATH || ''}`,
       };
 
       let child: ChildProcessWithoutNullStreams | null = null;
@@ -312,6 +342,91 @@ function spawnYtDlp(
   });
 }
 
+async function spawnFfmpegTranscode(
+  inputFilePath: string,
+  sendLog: (line: string) => void
+): Promise<{ code: number | null; outputPath?: string }>
+{
+  return new Promise(async (resolve) => {
+    try {
+      const { ffmpegExe, ffDir } = resolveFfmpegTools();
+      const ffmpegPath = ffmpegExe || (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg');
+      if (!fs.existsSync(inputFilePath)) {
+        sendLog(`[error] ffmpeg: input does not exist: ${inputFilePath}`);
+        return resolve({ code: 1 });
+      }
+      const parsed = path.parse(inputFilePath);
+      const outputPath = path.join(parsed.dir, `${parsed.name}.m4a`);
+      const args = [
+        '-hide_banner', '-nostdin', '-y',
+        '-loglevel', 'info',
+        '-i', inputFilePath,
+        '-vn',
+        '-c:a', 'aac',
+        '-q:a', '0',
+        outputPath,
+      ];
+      const envBase = { ...process.env } as NodeJS.ProcessEnv;
+      const extendedEnv: NodeJS.ProcessEnv = {
+        ...envBase,
+        FFMPEG_LOCATION: ffDir,
+        PATH: `${ffDir}${path.delimiter}${envBase.PATH || ''}`,
+      };
+      try { sendLog(`[info] ffmpeg transcode: ${JSON.stringify([ffmpegPath, ...args])}`); } catch {}
+
+      const candidates = [ffmpegPath, (process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg'), 'ffmpeg'];
+      const trySpawn = (cmd: string, useShell: boolean) => {
+        return spawn(cmd, args, { env: extendedEnv, cwd: ffDir, shell: useShell });
+      };
+
+      const runWithCandidate = (index: number) => {
+        if (index >= candidates.length) {
+          sendLog('[error] ffmpeg not found or failed to start after multiple attempts');
+          return resolve({ code: 1 });
+        }
+        const cmd = candidates[index];
+        let child = trySpawn(cmd, false);
+        let errored = false;
+        const onError = (err: NodeJS.ErrnoException) => {
+          errored = true;
+          sendLog(`[error] ffmpeg spawn error (${cmd}): ${err.code || ''} ${String(err)}`);
+          if (process.platform === 'win32' && index === 0) {
+            try {
+              const shellChild = trySpawn(cmd, true);
+              wire(shellChild);
+              child = shellChild;
+              return;
+            } catch {}
+          }
+          runWithCandidate(index + 1);
+        };
+        const onClose = (code: number | null) => {
+          if (errored) return;
+          resolve({ code, outputPath: code === 0 ? outputPath : undefined });
+        };
+        const wire = (proc: ChildProcessWithoutNullStreams) => {
+          proc.stdout.setEncoding('utf8');
+          proc.stderr.setEncoding('utf8');
+          proc.stdout.on('data', (chunk: string) => {
+            chunk.split(/\r?\n/).forEach((line) => { if (line) sendLog(line); });
+          });
+          proc.stderr.on('data', (chunk: string) => {
+            chunk.split(/\r?\n/).forEach((line) => { if (line) sendLog(line); });
+          });
+          proc.on('error', onError);
+          proc.on('close', onClose);
+        };
+        wire(child);
+      };
+
+      runWithCandidate(0);
+    } catch (err) {
+      sendLog(`[error] ffmpeg transcode failed: ${String(err)}`);
+      resolve({ code: 1 });
+    }
+  });
+}
+
 ipcMain.handle('start-download', async (event, payload: { url: string; outputDir: string }) => {
   const { url, outputDir } = payload || ({} as any);
 
@@ -335,9 +450,15 @@ ipcMain.handle('start-download', async (event, payload: { url: string; outputDir
       try {
         const result = await spawnYtDlp(url.trim(), outputDir.trim(), (line) => {
           const text = line.trim();
-          const savedFilePattern = /^(?:[a-zA-Z]:\\|\/)\S.*\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i;
-          if (savedFilePattern.test(text)) {
+          // Try to extract a full file path from common yt-dlp messages
+          const barePath = /^(?:[a-zA-Z]:\\|\/)\S.*\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav)$/i;
+          const destinationLine = /^(?:\[download\]\s+)?Destination:\s+((?:[a-zA-Z]:\\|\/)\S.*\.(?:mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav))$/i;
+          const movingLine = /^(?:\[download\]\s+)?Moving to:\s+((?:[a-zA-Z]:\\|\/)\S.*\.(?:mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav))$/i;
+          if (barePath.test(text)) {
             lastPath = text;
+          } else {
+            const dm = text.match(destinationLine) || text.match(movingLine);
+            if (dm && dm[1]) lastPath = dm[1];
           }
           event.sender.send('download-log', line, downloadId);
           try {
@@ -353,8 +474,47 @@ ipcMain.handle('start-download', async (event, payload: { url: string; outputDir
         });
 
         if (result.code === 0) {
-          try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: null, completedAt: Date.now(), status: 'completed' }); } catch {}
-          event.sender.send('download-complete', { id: downloadId, success: true, path: lastPath });
+          // If we couldn't detect the path from logs, try to pick the newest media file in the output directory
+          if (!lastPath) {
+            try {
+              const candidates = await fs.promises.readdir(outputDir).then((names) => names
+                .filter((n) => /\.(mp4|mkv|webm|mp3|m4a|opus|aac|flac|wav|ogg)$/i.test(n))
+                .map((n) => path.join(outputDir, n)));
+              const stats = await Promise.all(candidates.map(async (p) => ({ p, t: (await fs.promises.stat(p)).mtimeMs })));
+              const newest = stats.sort((a, b) => b.t - a.t)[0];
+              if (newest) {
+                lastPath = newest.p;
+                event.sender.send('download-log', `[info] Detected latest output file: ${lastPath}`, downloadId);
+              }
+            } catch {}
+          }
+
+          const isTargetAudio = /\.(m4a|aac)$/i.test(lastPath);
+          if (lastPath && !isTargetAudio) {
+            event.sender.send('download-log', '[info] Starting audio transcode to AAC (.m4a)…', downloadId);
+            const tx = await spawnFfmpegTranscode(lastPath, (line) => event.sender.send('download-log', line, downloadId));
+            const outPath = (tx && typeof tx.outputPath === 'string') ? tx.outputPath : '';
+            if (tx.code === 0 && outPath) {
+              // Attempt to remove the original source file to avoid duplicates
+              try {
+                if (lastPath && lastPath !== outPath) {
+                  await fs.promises.unlink(lastPath);
+                  event.sender.send('download-log', `[info] Removed source file: ${lastPath}` as any, downloadId);
+                }
+              } catch (remErr) {
+                event.sender.send('download-log', `[warn] Could not remove source file: ${lastPath} (${String(remErr)})` as any, downloadId);
+              }
+              try { updateDownloadCompleted({ id: downloadId, filePath: outPath, error: null, completedAt: Date.now(), status: 'completed' }); } catch {}
+              event.sender.send('download-complete', { id: downloadId, success: true, path: outPath || '' });
+            } else {
+              const msg = 'Transcode failed after download.';
+              try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: msg, completedAt: Date.now(), status: 'error' }); } catch {}
+              event.sender.send('download-complete', { id: downloadId, success: false, error: msg });
+            }
+          } else {
+            try { updateDownloadCompleted({ id: downloadId, filePath: lastPath || null, error: null, completedAt: Date.now(), status: 'completed' }); } catch {}
+            event.sender.send('download-complete', { id: downloadId, success: true, path: lastPath || '' });
+          }
         } else {
           const details = (result.stderr || result.stdout || '').split('\n').find((l) => /error|Traceback|Exception/i.test(l)) || '';
           const humanMessage = result.code === null

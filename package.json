@@ -51,8 +51,7 @@
       "artifactName": "yt-dlp-electron-${version}-win-${arch}.${ext}",
       "signAndEditExecutable": false,
       "icon": "build/icons/icon.ico",
-      "executableName": "yt-dlp-electron",
-      "publisherName": "wagner.dev"
+      "executableName": "yt-dlp-electron"
     },
     "nsis": {
       "shortcutName": "yt-dlp-electron",
@@ -62,8 +61,7 @@
     "mac": {
       "target": ["dmg", "zip"],
       "category": "public.app-category.music",
-      "artifactName": "yt-dlp-electron-${version}-mac.${ext}",
-      "publisherName": "wagner.dev"
+      "artifactName": "yt-dlp-electron-${version}-mac.${ext}"
     }
   },
   "scripts": {

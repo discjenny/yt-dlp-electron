@@ -8,6 +8,7 @@ declare global {
       selectOutputFolder: () => Promise<string | null>;
       startDownload: (payload: { url: string; outputDir: string }) => Promise<DownloadResult & { id?: string }>;
       onDownloadLog: (listener: (line: string, id?: string) => void) => () => void;
+      onDownloadComplete: (listener: (payload: { id: string; success: boolean; path?: string; error?: string }) => void) => () => void;
       getDefaultDownloads: () => Promise<string>;
       setDebug: (enabled: boolean) => void;
       windowAction: (action: 'minimize' | 'close') => void;
